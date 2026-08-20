@@ -22,13 +22,16 @@ import {
   ArrowLeft,
   KeyRound,
   LogIn,
+  Sliders,
+  Calculator,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { ModelType, ModelParams, SectionPlaneParams, DisplayOptions } from '../types/geometry';
 import { GEOMETRY_MODELS } from '../data/geometryModels';
 import { GeometryScene } from '../components/geometry/GeometryScene';
 import { ParameterControls } from '../components/controls/ParameterControls';
 import { SectionControls } from '../components/section/SectionControls';
-import { CrossSectionPresentationBar } from '../components/section/CrossSectionPresentationBar';
 import { CrossSectionPredictionModal } from '../components/section/CrossSectionPredictionModal';
 import { CrossSection2DInspectorModal } from '../components/section/CrossSection2DInspectorModal';
 import { createCuttingPlane, solveCrossSection, IntersectionResult } from '../components/section/CrossSectionMath';
@@ -39,7 +42,6 @@ import { soundEffects } from '../utils/audioEffects';
 import { ssoService, UserSession } from '../services/SSOService';
 import { shareService, ShareSessionConfig } from '../services/ShareService';
 import { getExperimentBySlug, getSlugByModelType } from '../data/slugMapping';
-import { buildReturnUrl } from '../integration/config';
 
 interface LabPageProps {
   initialSlug?: string;
@@ -99,7 +101,8 @@ export const LabPage: React.FC<LabPageProps> = ({
   const [isInspectorModalOpen, setIsInspectorModalOpen] = useState(false);
   const [isAITutorOpen, setIsAITutorOpen] = useState(false);
   const [isAITutorExpanded, setIsAITutorExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'params' | 'section' | 'unfold'>('section');
+  const [activeTab, setActiveTab] = useState<'section' | 'params' | 'formulas'>('section');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Update slug and model when initialSlug changes
   useEffect(() => {
@@ -171,7 +174,7 @@ export const LabPage: React.FC<LabPageProps> = ({
     setSectionParams((prev) => ({ ...prev, ...updates }));
   };
 
-  // Cross section intersection computation for modals & AI Tutor
+  // Cross section intersection computation
   const intersectionResult = useMemo<IntersectionResult | null>(() => {
     try {
       const { plane } = createCuttingPlane(
@@ -186,55 +189,83 @@ export const LabPage: React.FC<LabPageProps> = ({
     }
   }, [selectedType, params, sectionParams.pitch, sectionParams.yaw, sectionParams.roll, sectionParams.position]);
 
-  // Volume and Area calculation from Geometry Engine (for AI Tutor context)
+  // Volume and Area calculation
   const volumeAndArea = useMemo(() => {
-    const r = params.radius || 4;
-    const h = params.height || 8;
+    const r = params.radius || params.r || 3;
+    const h = params.height || params.h || 5;
     const l = params.slantHeight || Math.sqrt(r * r + h * h);
-    const a = params.sideA || 6;
-    const b = params.sideB || 6;
-    const c = params.sideC || 6;
+    const a = params.sideA || params.a || 5;
+    const b = params.sideB || params.b || 4;
+    const c = params.sideC || params.h || 4;
     switch (selectedType) {
       case 'cylinder':
         return {
           volume: Math.PI * r * r * h,
           surfaceArea: 2 * Math.PI * r * h + 2 * Math.PI * r * r,
           lateralArea: 2 * Math.PI * r * h,
+          formulas: [
+            { label: 'Diện tích xung quanh', formula: 'S_xq = 2πrh', value: (2 * Math.PI * r * h).toFixed(2) + ' cm²' },
+            { label: 'Diện tích toàn phần', formula: 'S_tp = 2πrh + 2πr²', value: (2 * Math.PI * r * h + 2 * Math.PI * r * r).toFixed(2) + ' cm²' },
+            { label: 'Thể tích', formula: 'V = πr²h', value: (Math.PI * r * r * h).toFixed(2) + ' cm³' },
+          ],
         };
       case 'cone':
         return {
           volume: (1 / 3) * Math.PI * r * r * h,
           surfaceArea: Math.PI * r * l + Math.PI * r * r,
           lateralArea: Math.PI * r * l,
+          formulas: [
+            { label: 'Đường sinh', formula: 'l = √(r² + h²)', value: l.toFixed(2) + ' cm' },
+            { label: 'Diện tích xung quanh', formula: 'S_xq = πrl', value: (Math.PI * r * l).toFixed(2) + ' cm²' },
+            { label: 'Diện tích toàn phần', formula: 'S_tp = πrl + πr²', value: (Math.PI * r * l + Math.PI * r * r).toFixed(2) + ' cm²' },
+            { label: 'Thể tích', formula: 'V = (1/3)πr²h', value: ((1 / 3) * Math.PI * r * r * h).toFixed(2) + ' cm³' },
+          ],
         };
       case 'sphere':
         return {
           volume: (4 / 3) * Math.PI * Math.pow(r, 3),
           surfaceArea: 4 * Math.PI * r * r,
           lateralArea: 4 * Math.PI * r * r,
+          formulas: [
+            { label: 'Diện tích mặt cầu', formula: 'S = 4πR²', value: (4 * Math.PI * r * r).toFixed(2) + ' cm²' },
+            { label: 'Thể tích khối cầu', formula: 'V = (4/3)πR³', value: ((4 / 3) * Math.PI * Math.pow(r, 3)).toFixed(2) + ' cm³' },
+          ],
         };
       case 'cube':
         return {
           volume: Math.pow(a, 3),
           surfaceArea: 6 * a * a,
           lateralArea: 4 * a * a,
+          formulas: [
+            { label: 'Diện tích xung quanh', formula: 'S_xq = 4a²', value: (4 * a * a).toFixed(2) + ' cm²' },
+            { label: 'Diện tích toàn phần', formula: 'S_tp = 6a²', value: (6 * a * a).toFixed(2) + ' cm²' },
+            { label: 'Thể tích', formula: 'V = a³', value: (Math.pow(a, 3)).toFixed(2) + ' cm³' },
+            { label: 'Đường chéo', formula: 'd = a√3', value: (a * Math.sqrt(3)).toFixed(2) + ' cm' },
+          ],
         };
       case 'cuboid':
         return {
           volume: a * b * c,
           surfaceArea: 2 * (a * b + b * c + c * a),
           lateralArea: 2 * (a * c + b * c),
+          formulas: [
+            { label: 'Diện tích xung quanh', formula: 'S_xq = 2h(a + b)', value: (2 * c * (a + b)).toFixed(2) + ' cm²' },
+            { label: 'Diện tích toàn phần', formula: 'S_tp = S_xq + 2ab', value: (2 * (a * b + b * c + c * a)).toFixed(2) + ' cm²' },
+            { label: 'Thể tích', formula: 'V = a.b.h', value: (a * b * c).toFixed(2) + ' cm³' },
+            { label: 'Đường chéo', formula: 'd = √(a² + b² + h²)', value: Math.sqrt(a * a + b * b + c * c).toFixed(2) + ' cm' },
+          ],
         };
       default:
         return {
           volume: Math.PI * r * r * h,
           surfaceArea: 2 * Math.PI * r * h + 2 * Math.PI * r * r,
           lateralArea: 2 * Math.PI * r * h,
+          formulas: [],
         };
     }
   }, [selectedType, params]);
 
-  // Real-time AI Context derived from verified engine metrics
+  // Real-time AI Context
   const aiContext = useMemo<ExperimentAIContext>(() => {
     return {
       experimentId: currentSlug,
@@ -272,23 +303,24 @@ export const LabPage: React.FC<LabPageProps> = ({
   }, [currentSlug, currentModelConfig.title, selectedType, params, sectionParams, intersectionResult, volumeAndArea, isTeacher]);
 
   return (
-    <div className="flex flex-col flex-1 h-full w-full bg-slate-950 text-slate-100 overflow-hidden relative">
-      {/* 1. TEACHER / STUDENT TOP BAR */}
+    <div className="flex flex-col h-[calc(100vh-3.75rem)] w-full bg-slate-950 text-slate-100 overflow-hidden relative select-none">
+      {/* 1. TOP TOOLBAR & MODEL SELECTOR */}
       <TeacherToolbar
         modelType={selectedType}
         experimentSlug={currentSlug}
         modelTitle={currentModelConfig.title}
         isStudentMode={isStudentMode}
+        onModelChange={!isStudentMode ? handleModelChange : undefined}
         onOpenPredictionModal={() => setIsPredictionModalOpen(true)}
         onOpenInspectorModal={() => setIsInspectorModalOpen(true)}
         onToggleAITutor={() => setIsAITutorOpen(!isAITutorOpen)}
         isAITutorOpen={isAITutorOpen}
       />
 
-      {/* 2. MAIN 3D WORKSPACE */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-        {/* Left Side 3D Canvas */}
-        <div className="flex-1 h-[55vh] lg:h-full relative bg-slate-950">
+      {/* 2. MAIN 3D WORKSPACE (Responsive Flex Row) */}
+      <div className="flex-1 flex flex-row overflow-hidden relative">
+        {/* Left Side: 3D Interactive Canvas */}
+        <div className="flex-1 h-full relative bg-slate-950 p-2 sm:p-3 overflow-hidden">
           <GeometryScene
             modelType={selectedType}
             params={params}
@@ -298,81 +330,133 @@ export const LabPage: React.FC<LabPageProps> = ({
             onOptionToggle={handleOptionToggle}
           />
 
-          {/* Quick Model Carousel Selector (Hidden in strict student mode) */}
-          {!isStudentMode && (
-            <div className="absolute top-3 left-4 z-10 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md p-1.5 rounded-xl border border-slate-800/80 shadow-lg max-w-[85vw] overflow-x-auto">
-              {GEOMETRY_MODELS.slice(0, 7).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => handleModelChange(m.modelType)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
-                    selectedType === m.modelType
-                      ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
-                      : 'text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  <Box className="w-3.5 h-3.5" />
-                  <span>{m.title}</span>
-                </button>
-              ))}
+          {/* Toggle Sidebar Collapse Button */}
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="absolute top-1/2 -translate-y-1/2 right-4 z-30 w-7 h-12 rounded-l-xl bg-slate-900/90 border border-slate-700/80 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center shadow-2xl transition"
+            title={isSidebarOpen ? 'Thu gọn bảng điều khiển' : 'Mở rộng bảng điều khiển'}
+          >
+            {isSidebarOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {/* Right Side: Professional Side Control Panel */}
+        {isSidebarOpen && (
+          <aside className="w-[360px] xl:w-[400px] h-full bg-slate-900/95 border-l border-slate-800 flex flex-col z-20 shadow-2xl shrink-0">
+            {/* Panel Tabs */}
+            <div className="flex items-center border-b border-slate-800 bg-slate-950/90 p-2 gap-1.5 shrink-0">
+              <button
+                onClick={() => setActiveTab('section')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                  activeTab === 'section'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm'
+                    : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                }`}
+              >
+                <Scissors className="w-3.5 h-3.5 text-rose-400" />
+                <span>Mặt Phẳng Cắt</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('params')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                  activeTab === 'params'
+                    ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
+                    : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5 text-sky-400" />
+                <span>Kích Thước</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('formulas')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                  activeTab === 'formulas'
+                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
+                    : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                }`}
+              >
+                <Calculator className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Công Thức</span>
+              </button>
             </div>
-          )}
-        </div>
 
-        {/* Right Side Controls Panel */}
-        <div className="w-full lg:w-[420px] xl:w-[460px] bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-800 flex flex-col h-[45vh] lg:h-full z-20">
-          {/* Panel Navigation Tabs */}
-          <div className="flex items-center border-b border-slate-800 bg-slate-900/90 px-3 py-2 gap-1.5">
-            <button
-              onClick={() => setActiveTab('section')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                activeTab === 'section'
-                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                  : 'text-slate-400 hover:bg-slate-800'
-              }`}
-            >
-              <Scissors className="w-3.5 h-3.5" />
-              <span>Cắt Mặt Phẳng</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('params')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                activeTab === 'params'
-                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-                  : 'text-slate-400 hover:bg-slate-800'
-              }`}
-            >
-              <Box className="w-3.5 h-3.5" />
-              <span>Kích Thước 3D</span>
-            </button>
-          </div>
+            {/* Tab Body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+              {activeTab === 'section' && (
+                <SectionControls
+                  modelType={selectedType}
+                  params={params}
+                  sectionParams={sectionParams}
+                  onChange={handleSectionUpdate}
+                />
+              )}
 
-          {/* Tab Contents */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {activeTab === 'section' && (
-              <SectionControls
-                modelType={selectedType}
-                params={params}
-                sectionParams={sectionParams}
-                onChange={handleSectionUpdate}
-              />
-            )}
+              {activeTab === 'params' && (
+                <ParameterControls
+                  config={currentModelConfig}
+                  params={params}
+                  displayOptions={displayOptions}
+                  onParamChange={handleParamChange}
+                  onOptionToggle={handleOptionToggle}
+                  onReset={() => setParams(currentModelConfig.defaultParams)}
+                  isTeacherMode={isTeacher}
+                />
+              )}
 
-            {activeTab === 'params' && (
-              <ParameterControls
-                config={currentModelConfig}
-                params={params}
-                displayOptions={displayOptions}
-                onParamChange={handleParamChange}
-                onOptionToggle={handleOptionToggle}
-                onReset={() => setParams(currentModelConfig.defaultParams)}
-                isTeacherMode={isTeacher}
-              />
-            )}
-          </div>
-        </div>
+              {activeTab === 'formulas' && (
+                <div className="space-y-3.5 animate-fadeIn">
+                  <div className="p-3 bg-indigo-950/30 border border-indigo-500/30 rounded-xl space-y-1">
+                    <div className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                      <Box className="w-4 h-4 text-indigo-400" />
+                      <span>{currentModelConfig.title}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Tính toán tự động theo kích thước đang thiết lập trên mô hình 3D:
+                    </p>
+                  </div>
 
-        {/* AI Tutor Panel (Docked or Overlay) */}
+                  <div className="space-y-2">
+                    {volumeAndArea.formulas?.map((f, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-slate-700 space-y-1 transition"
+                      >
+                        <div className="text-xs text-slate-400 font-medium flex justify-between items-center">
+                          <span>{f.label}</span>
+                          <span className="font-mono text-amber-300 font-bold">{f.formula}</span>
+                        </div>
+                        <div className="text-sm font-extrabold text-sky-400 font-mono">
+                          = {f.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {intersectionResult && (
+                    <div className="p-3.5 bg-rose-950/20 border border-rose-500/30 rounded-xl space-y-1.5">
+                      <div className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                        <Scissors className="w-4 h-4 text-rose-400" />
+                        <span>Mặt Cắt Hiện Tại</span>
+                      </div>
+                      <div className="text-xs text-slate-300 flex justify-between">
+                        <span>Hình dạng thiết diện:</span>
+                        <span className="font-bold text-emerald-400">{intersectionResult.shapeNameVi}</span>
+                      </div>
+                      <div className="text-xs text-slate-300 flex justify-between">
+                        <span>Diện tích thiết diện:</span>
+                        <span className="font-bold text-sky-400">{intersectionResult.area.toFixed(2)} cm²</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
+
+        {/* AI Tutor Panel */}
         {isAITutorOpen && (
           <AITutorPanel
             context={aiContext}
@@ -384,7 +468,7 @@ export const LabPage: React.FC<LabPageProps> = ({
         )}
       </div>
 
-      {/* 3. MODALS (Prediction & 2D Inspector) */}
+      {/* 3. MODALS */}
       <CrossSectionPredictionModal
         isOpen={isPredictionModalOpen}
         onClose={() => setIsPredictionModalOpen(false)}

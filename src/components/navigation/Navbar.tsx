@@ -68,35 +68,35 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isTeacherLoggedIn = userSession && (userSession.role === 'teacher' || userSession.role === 'admin');
 
   return (
-    <header className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-xl border-b border-slate-800 text-slate-100 shadow-xl">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+    <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 text-slate-100 shadow-xl">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-15 flex items-center justify-between gap-3">
         {/* Brand Logo */}
         <button
           onClick={() => onTabChange('home')}
           className="flex items-center gap-2.5 group focus:outline-none text-left shrink-0"
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-600 p-0.5 shadow-lg shadow-sky-500/20 group-hover:scale-105 transition-transform">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-600 p-0.5 shadow-lg shadow-sky-500/20 group-hover:scale-105 transition-transform">
             <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-              <FlaskConical className="w-5 h-5 text-sky-400 group-hover:rotate-12 transition-transform" />
+              <FlaskConical className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400 group-hover:rotate-12 transition-transform" />
             </div>
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-sky-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
+              <span className="font-extrabold text-sm sm:text-base lg:text-lg tracking-tight bg-gradient-to-r from-sky-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
                 MATH LAB 3D
               </span>
               <span className="hidden lg:inline-flex px-1.5 py-0.5 text-[9px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded">
                 GDPT 2018
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 font-medium tracking-wide">
+            <p className="text-[10px] text-slate-400 font-medium tracking-wide hidden sm:block">
               Phòng Thí Nghiệm Toán Học 3D
             </p>
           </div>
         </button>
 
-        {/* Navigation Tabs */}
-        <nav className="hidden md:flex items-center gap-1 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800/80 overflow-x-auto max-w-[620px]">
+        {/* Navigation Tabs with hidden scrollbars */}
+        <nav className="hidden md:flex items-center gap-1 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800/80 overflow-x-auto no-scrollbar max-w-[650px]">
           <button
             onClick={() => onTabChange('home')}
             className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap transition-all ${
@@ -306,7 +306,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Mobile Sub Navigation Bar */}
-      <div className="md:hidden flex items-center justify-around bg-slate-950 border-t border-slate-800/80 px-2 py-1.5 text-xs overflow-x-auto">
+      <div className="md:hidden flex items-center justify-around bg-slate-950 border-t border-slate-800/80 px-2 py-1.5 text-xs overflow-x-auto no-scrollbar">
         <button
           onClick={() => onTabChange('home')}
           className={`px-2 py-1 rounded-md whitespace-nowrap ${activeTab === 'home' ? 'text-sky-400 font-bold' : 'text-slate-400'}`}

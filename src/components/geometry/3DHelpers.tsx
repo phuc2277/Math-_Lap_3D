@@ -15,15 +15,15 @@ export const Label3D: React.FC<Label3DProps> = ({
   text,
   subtext,
   color = 'text-sky-300',
-  badgeBg = 'bg-slate-900/85 border-slate-700/80',
+  badgeBg = 'bg-slate-900/90 border-slate-700/80',
 }) => {
   return (
-    <Html position={position} center distanceFactor={12} zIndexRange={[100, 0]}>
+    <Html position={position} center distanceFactor={7} zIndexRange={[100, 0]}>
       <div
-        className={`px-2 py-1 rounded-md text-xs font-semibold shadow-lg backdrop-blur-md border ${badgeBg} ${color} flex flex-col items-center select-none pointer-events-none transition-all whitespace-nowrap`}
+        className={`px-1.5 py-0.5 rounded text-[10px] font-bold shadow-lg backdrop-blur-md border ${badgeBg} ${color} flex flex-col items-center select-none pointer-events-none transition-all whitespace-nowrap leading-tight ring-1 ring-black/30`}
       >
         <span>{text}</span>
-        {subtext && <span className="text-[10px] opacity-80 font-normal">{subtext}</span>}
+        {subtext && <span className="text-[8px] opacity-75 font-normal">{subtext}</span>}
       </div>
     </Html>
   );
@@ -56,15 +56,15 @@ export const DimensionLine: React.FC<DimensionLineProps> = ({
   return (
     <group>
       {/* Main line using Drei Line component */}
-      <Line points={[start, end]} color={color} lineWidth={2.5} />
+      <Line points={[start, end]} color={color} lineWidth={2} />
 
       {/* End point markers */}
       <mesh position={start}>
-        <sphereGeometry args={[0.09, 16, 16]} />
+        <sphereGeometry args={[0.06, 16, 16]} />
         <meshBasicMaterial color={color} />
       </mesh>
       <mesh position={end}>
-        <sphereGeometry args={[0.09, 16, 16]} />
+        <sphereGeometry args={[0.06, 16, 16]} />
         <meshBasicMaterial color={color} />
       </mesh>
 
@@ -78,16 +78,16 @@ export const CustomAxesHelper: React.FC<{ size?: number }> = ({ size = 6 }) => {
   return (
     <group>
       {/* X Axis Red */}
-      <Line points={[[-size, 0, 0], [size, 0, 0]]} color="#ef4444" lineWidth={2} opacity={0.7} transparent />
-      <Label3D position={[size + 0.4, 0, 0]} text="X" color="text-red-400" badgeBg="bg-red-950/80 border-red-800" />
+      <Line points={[[-size, 0, 0], [size, 0, 0]]} color="#ef4444" lineWidth={1.5} opacity={0.6} transparent />
+      <Label3D position={[size + 0.3, 0, 0]} text="X" color="text-red-400" badgeBg="bg-red-950/80 border-red-800" />
 
       {/* Y Axis Green */}
-      <Line points={[[0, -size, 0], [0, size, 0]]} color="#22c55e" lineWidth={2} opacity={0.7} transparent />
-      <Label3D position={[0, size + 0.4, 0]} text="Y" color="text-green-400" badgeBg="bg-green-950/80 border-green-800" />
+      <Line points={[[0, -size, 0], [0, size, 0]]} color="#22c55e" lineWidth={1.5} opacity={0.6} transparent />
+      <Label3D position={[0, size + 0.3, 0]} text="Y" color="text-green-400" badgeBg="bg-green-950/80 border-green-800" />
 
       {/* Z Axis Blue */}
-      <Line points={[[0, 0, -size], [0, 0, size]]} color="#3b82f6" lineWidth={2} opacity={0.7} transparent />
-      <Label3D position={[0, 0, size + 0.4]} text="Z" color="text-blue-400" badgeBg="bg-blue-950/80 border-blue-800" />
+      <Line points={[[0, 0, -size], [0, 0, size]]} color="#3b82f6" lineWidth={1.5} opacity={0.6} transparent />
+      <Label3D position={[0, 0, size + 0.3]} text="Z" color="text-blue-400" badgeBg="bg-blue-950/80 border-blue-800" />
     </group>
   );
 };

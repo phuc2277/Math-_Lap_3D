@@ -47,7 +47,6 @@ import {
   Type,
   Scissors,
   Zap,
-  Gauge,
 } from 'lucide-react';
 
 interface GeometrySceneProps {
@@ -85,6 +84,7 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRotate, setAutoRotate] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showPredictionModal, setShowPredictionModal] = useState(false);
 
   // Local fallback section state
   const [localSection, setLocalSection] = useState<SectionPlaneParams>(
@@ -108,25 +108,33 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
     }
   };
 
-  // Camera preset positions
+  const handleSectionUpdate = (updates: Partial<SectionPlaneParams>) => {
+    const updated = { ...activeSection, ...updates };
+    setLocalSection(updated);
+    if (onSectionChange) {
+      onSectionChange(updates);
+    }
+  };
+
+  // Camera preset positions - centered and close to model
   const setCameraPreset = (preset: 'iso' | 'front' | 'top' | 'side') => {
     if (!controlsRef.current) return;
     const controls = controlsRef.current;
 
-    controls.target.set(0, 2, 0);
+    controls.target.set(0, 1.8, 0);
 
     switch (preset) {
       case 'iso':
-        controls.object.position.set(10, 8, 10);
+        controls.object.position.set(6.5, 4.5, 6.5);
         break;
       case 'front':
-        controls.object.position.set(0, 3, 14);
+        controls.object.position.set(0, 2.0, 9.5);
         break;
       case 'top':
-        controls.object.position.set(0, 14, 0.01);
+        controls.object.position.set(0, 10, 0.01);
         break;
       case 'side':
-        controls.object.position.set(14, 3, 0);
+        controls.object.position.set(9.5, 2.0, 0);
         break;
     }
     controls.update();
@@ -143,57 +151,54 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
     }
   };
 
-  const [showPredictionModal, setShowPredictionModal] = useState(false);
-
-  const handleSectionUpdate = (updates: Partial<SectionPlaneParams>) => {
-    const updated = { ...activeSection, ...updates };
-    setLocalSection(updated);
-    if (onSectionChange) {
-      onSectionChange(updates);
-    }
-  };
-
   const playSequentialAnimation = () => {
-    handleSectionUpdate({
-      enabled: true,
-      isAnimating: true,
-      isCut: false,
-      separation: 0,
-      extractSection: false,
-    });
-
-    let progress = 0;
+    let step = 0;
     const interval = setInterval(() => {
-      progress += 0.05;
-      if (progress <= 0.3) {
-        handleSectionUpdate({ position: -0.6 + progress * 2 });
-      } else if (progress <= 0.5) {
-        handleSectionUpdate({ isCut: true, showSectionFace: true, showContour: true });
-      } else if (progress <= 0.75) {
-        handleSectionUpdate({ isCut: true, separation: (progress - 0.5) * 6 });
-      } else if (progress <= 1.0) {
-        handleSectionUpdate({
-          isCut: true,
-          separation: 1.5,
-          extractSection: true,
-          extractRotation: 1,
-        });
+      step += 1;
+      if (step === 1) {
+        handleSectionUpdate({ isCut: true, separation: 0, extractSection: false });
+      } else if (step === 2) {
+        handleSectionUpdate({ separation: 1.5 });
+      } else if (step === 3) {
+        handleSectionUpdate({ extractSection: true });
       } else {
         clearInterval(interval);
-        handleSectionUpdate({ isAnimating: false });
       }
-    }, 100);
+    }, 900);
   };
 
-  if (activeMode === 'liquid') {
-    return <LiquidFilling3D params={params} displayOptions={displayOptions} />;
-  }
+  const renderBaseShape = () => {
+    switch (modelType) {
+      case 'cuboid':
+        return <Cuboid3D params={params} displayOptions={displayOptions} />;
+      case 'cube':
+        return <Cube3D params={params} displayOptions={displayOptions} />;
+      case 'cylinder':
+        return <Cylinder3D params={params} displayOptions={displayOptions} />;
+      case 'cone':
+        return <Cone3D params={params} displayOptions={displayOptions} />;
+      case 'sphere':
+        return <Sphere3D params={params} displayOptions={displayOptions} />;
+      case 'parabol':
+        return <Parabol3D params={params} displayOptions={displayOptions} />;
+      case 'prism':
+        return <Prism3D params={params} displayOptions={displayOptions} />;
+      case 'prism_quad':
+        return <PrismQuad3D params={params} displayOptions={displayOptions} />;
+      case 'pyramid':
+        return <Pyramid3D params={params} displayOptions={displayOptions} />;
+      case 'pyramid_triangular':
+        return <PyramidTriangular3D params={params} displayOptions={displayOptions} />;
+      default:
+        return <Cylinder3D params={params} displayOptions={displayOptions} />;
+    }
+  };
 
   const renderContent = () => {
     if (activeMode === 'unfolding') {
       switch (modelType) {
         case 'cuboid':
-          return <CuboidUnfolding params={params} progress={unfoldingProgress} displayOptions={displayOptions} isCube={false} />;
+          return <CuboidUnfolding params={params} progress={unfoldingProgress} displayOptions={displayOptions} />;
         case 'cube':
           return <CubeUnfolding params={params} progress={unfoldingProgress} displayOptions={displayOptions} />;
         case 'cylinder':
@@ -208,43 +213,13 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
           return <PyramidUnfolding params={params} progress={unfoldingProgress} displayOptions={displayOptions} />;
         case 'pyramid_triangular':
           return <PyramidTriangularUnfolding params={params} progress={unfoldingProgress} displayOptions={displayOptions} />;
-        case 'sphere':
-          return <Sphere3D params={params} displayOptions={displayOptions} />;
         default:
-          return null;
+          return <CylinderUnfolding params={params} progress={unfoldingProgress} displayOptions={displayOptions} />;
       }
     }
 
-    // Standard 3D model render for 'observe', 'section', 'experiment'
-    const renderBaseShape = () => {
-      switch (modelType) {
-        case 'cuboid':
-          return <Cuboid3D params={params} displayOptions={displayOptions} />;
-        case 'cube':
-          return <Cube3D params={params} displayOptions={displayOptions} />;
-        case 'cylinder':
-          return <Cylinder3D params={params} displayOptions={displayOptions} />;
-        case 'cone':
-          return <Cone3D params={params} displayOptions={displayOptions} />;
-        case 'sphere':
-          return <Sphere3D params={params} displayOptions={displayOptions} />;
-        case 'prism':
-          return <Prism3D params={params} displayOptions={displayOptions} />;
-        case 'prism_quad':
-          return <PrismQuad3D params={params} displayOptions={displayOptions} />;
-        case 'pyramid':
-          return <Pyramid3D params={params} displayOptions={displayOptions} />;
-        case 'pyramid_triangular':
-          return <PyramidTriangular3D params={params} displayOptions={displayOptions} />;
-        case 'parabol':
-          return <Parabol3D params={params} displayOptions={displayOptions} />;
-        default:
-          return null;
-      }
-    };
-
-    // If cut is executed, UniversalCrossSection3D renders the 2 severed solid halves
-    const shouldRenderUncutBase = !activeSection.enabled || !activeSection.isCut;
+    const isCutActive = activeSection.enabled && activeSection.isCut;
+    const shouldRenderUncutBase = !isCutActive;
 
     return (
       <group>
@@ -275,15 +250,16 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full min-h-[420px] bg-slate-950/90 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col group select-none"
+      className="relative w-full h-full min-h-[380px] bg-slate-950/95 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col group select-none"
     >
-      {/* Top Floating Control Bar */}
-      <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
-        <div className="flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md p-1.5 rounded-xl border border-slate-800/80 shadow-lg pointer-events-auto">
+      {/* Top Floating Control Islands: Camera Left & Actions Right */}
+      <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none gap-2">
+        {/* Left: Camera Angle Presets */}
+        <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border border-slate-800/90 shadow-xl pointer-events-auto shrink-0">
           <button
             onClick={() => setCameraPreset('iso')}
             title="Góc nhìn 3/4 (Khái quát)"
-            className="px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition flex items-center gap-1"
+            className="px-2 sm:px-2.5 py-1.2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/90 rounded-lg transition flex items-center gap-1"
           >
             <Box className="w-3.5 h-3.5 text-sky-400" />
             <span className="hidden sm:inline">3D 3/4</span>
@@ -291,7 +267,7 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
           <button
             onClick={() => setCameraPreset('front')}
             title="Nhìn chính diện (Mặt trước)"
-            className="px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition flex items-center gap-1"
+            className="px-2 sm:px-2.5 py-1.2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/90 rounded-lg transition flex items-center gap-1"
           >
             <Eye className="w-3.5 h-3.5 text-emerald-400" />
             <span className="hidden sm:inline">Chính diện</span>
@@ -299,33 +275,35 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
           <button
             onClick={() => setCameraPreset('top')}
             title="Nhìn từ trên xuống (Mặt đáy)"
-            className="px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition flex items-center gap-1"
+            className="px-2 sm:px-2.5 py-1.2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/90 rounded-lg transition flex items-center gap-1"
           >
             <Compass className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden sm:inline">Từ trên</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md p-1.5 rounded-xl border border-slate-800/80 shadow-lg pointer-events-auto">
+        {/* Right: Quick Tools & Toggles */}
+        <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border border-slate-800/90 shadow-xl pointer-events-auto shrink-0">
           {/* Quick Section Plane Cut Toggle Button */}
           <button
             onClick={toggleSectionPlane}
             title={activeSection.enabled ? 'Tắt mặt phẳng cắt thiết diện' : 'Bật mặt phẳng cắt thiết diện'}
-            className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 ${
+            className={`px-2 sm:px-2.5 py-1.2 text-xs font-semibold rounded-lg transition flex items-center gap-1 ${
               activeSection.enabled
                 ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 shadow-sm'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
             }`}
           >
             <Scissors className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden sm:inline">{activeSection.enabled ? 'Tắt mặt cắt' : 'Bật mặt cắt'}</span>
+            <span className="hidden md:inline">{activeSection.enabled ? 'Tắt mặt cắt' : 'Bật mặt cắt'}</span>
           </button>
+
           {/* Quick Clear/Hide Labels Button */}
           {onOptionToggle && (
             <button
               onClick={() => onOptionToggle('showLabels')}
               title={displayOptions.showLabels ? 'Xóa/Ẩn tất cả các chữ trên hình' : 'Hiện lại chữ trên hình'}
-              className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 ${
+              className={`px-2 sm:px-2.5 py-1.2 text-xs font-semibold rounded-lg transition flex items-center gap-1 ${
                 !displayOptions.showLabels
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
@@ -334,12 +312,12 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
               {!displayOptions.showLabels ? (
                 <>
                   <Type className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="hidden sm:inline">Hiện chữ</span>
+                  <span className="hidden md:inline">Hiện chữ</span>
                 </>
               ) : (
                 <>
                   <EyeOff className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Xóa chữ</span>
+                  <span className="hidden md:inline">Xóa chữ</span>
                 </>
               )}
             </button>
@@ -351,11 +329,11 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
               <button
                 onClick={() => setShowColorPicker(!showColorPicker)}
                 title="Đổi màu sắc mô hình"
-                className="px-2 py-1.5 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition flex items-center gap-1.5"
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition flex items-center gap-1"
               >
                 <Palette className="w-3.5 h-3.5 text-sky-400" />
                 <span
-                  className="w-3 h-3 rounded-full border border-white/50 shadow-sm"
+                  className="w-2.5 h-2.5 rounded-full border border-white/50 shadow-sm"
                   style={{ backgroundColor: displayOptions.modelColor || '#38bdf8' }}
                 />
               </button>
@@ -396,56 +374,59 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
               onClick={() => onOptionToggle('performanceMode')}
               title={
                 displayOptions.performanceMode
-                  ? 'Chế độ Hiệu năng Cao (Performance Mode ĐANG BẬT): Giảm độ phân giải & khử răng cưa để mượt mà trên máy yếu'
-                  : 'Bật Chế độ Hiệu năng (Performance Mode): Giúp máy yếu / điện thoại không bị lag'
+                  ? 'Chế độ Hiệu năng Cao (ĐANG BẬT): Giảm tải đồ họa cho máy nhẹ'
+                  : 'Bật Tiết kiệm GPU'
               }
-              className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 ${
+              className={`p-1.5 md:px-2 md:py-1.2 text-xs font-semibold rounded-lg transition flex items-center gap-1 ${
                 displayOptions.performanceMode
-                  ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 shadow-sm shadow-emerald-500/20 animate-pulse'
+                  ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 shadow-sm'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
               }`}
             >
               <Zap className={`w-3.5 h-3.5 ${displayOptions.performanceMode ? 'text-emerald-400 fill-current' : 'text-slate-400'}`} />
-              <span className="hidden md:inline">
+              <span className="hidden lg:inline">
                 {displayOptions.performanceMode ? 'Hiệu năng cao' : 'Tiết kiệm GPU'}
               </span>
             </button>
           )}
 
+          {/* Auto Rotate Toggle */}
           <button
             onClick={() => setAutoRotate(!autoRotate)}
             title={autoRotate ? 'Dừng tự xoay' : 'Bật tự xoay mô hình'}
-            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition flex items-center gap-1 ${
+            className={`p-1.5 md:px-2 md:py-1.2 text-xs font-medium rounded-lg transition flex items-center gap-1 ${
               autoRotate
                 ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
             }`}
           >
             {autoRotate ? <Pause className="w-3.5 h-3.5 text-sky-400" /> : <Play className="w-3.5 h-3.5 text-slate-400" />}
-            <span className="hidden sm:inline">{autoRotate ? 'Dừng quay' : 'Tự xoay'}</span>
+            <span className="hidden lg:inline">{autoRotate ? 'Dừng quay' : 'Tự xoay'}</span>
           </button>
 
+          {/* Reset Camera */}
           <button
             onClick={() => setCameraPreset('iso')}
             title="Đặt lại camera"
             className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition"
           >
-            <RotateCcw className="w-4 h-4 text-amber-400" />
+            <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
           </button>
 
+          {/* Fullscreen inside Scene */}
           <button
             onClick={toggleFullscreen}
-            title={isFullscreen ? 'Thoát toàn màn hình' : 'Mở toàn màn hình'}
+            title={isFullscreen ? 'Thoát toàn màn hình' : 'Mở toàn màn hình 3D'}
             className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition"
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4 text-rose-400" /> : <Maximize2 className="w-4 h-4 text-indigo-400" />}
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-rose-400" /> : <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />}
           </button>
         </div>
       </div>
 
-      {/* R3F Canvas - Optimized for low-end devices when performanceMode is true */}
+      {/* R3F Canvas */}
       <Canvas
-        camera={{ position: [10, 8, 10], fov: 45 }}
+        camera={{ position: [6.5, 4.5, 6.5], fov: 38 }}
         dpr={displayOptions.performanceMode ? [0.75, 1] : [1, 2]}
         gl={{
           antialias: !displayOptions.performanceMode,
@@ -456,11 +437,11 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
         className="w-full h-full cursor-grab active:cursor-grabbing"
       >
         <ambientLight intensity={displayOptions.performanceMode ? 1.4 : 1.2} />
-        <directionalLight position={[12, 15, 10]} intensity={1.8} castShadow={!displayOptions.performanceMode} />
+        <directionalLight position={[10, 14, 10]} intensity={1.8} castShadow={!displayOptions.performanceMode} />
         {!displayOptions.performanceMode && (
           <>
-            <pointLight position={[-10, 8, -10]} intensity={0.6} color="#38bdf8" />
-            <pointLight position={[10, -5, 10]} intensity={0.4} color="#f43f5e" />
+            <pointLight position={[-8, 6, -8]} intensity={0.6} color="#38bdf8" />
+            <pointLight position={[8, -4, 8]} intensity={0.4} color="#f43f5e" />
           </>
         )}
 
@@ -475,7 +456,7 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
         {/* Axis Helper */}
         {displayOptions.showAxes && <CustomAxesHelper size={7} />}
 
-        {/* Floor Shadow (Disabled in Performance Mode to save GPU fill rate) */}
+        {/* Floor Shadow */}
         {!displayOptions.performanceMode && (
           <ContactShadows
             position={[0, -0.02, 0]}
@@ -492,9 +473,9 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
           ref={controlsRef}
           enableDamping
           dampingFactor={0.05}
-          minDistance={3}
-          maxDistance={35}
-          target={[0, 2, 0]}
+          minDistance={2}
+          maxDistance={30}
+          target={[0, 1.8, 0]}
           autoRotate={autoRotate}
           autoRotateSpeed={1.5}
         />
@@ -525,15 +506,10 @@ export const GeometryScene: React.FC<GeometrySceneProps> = ({
       />
 
       {/* Bottom Canvas Overlay Instructions */}
-      <div className="absolute bottom-3 left-4 z-10 flex items-center gap-2 pointer-events-none hidden sm:flex">
-        <div className="text-[11px] text-slate-400 bg-slate-900/70 backdrop-blur-sm px-2.5 py-1 rounded-md border border-slate-800/60">
-          🖱️ Chuột trái: Xoay 3D • 🖱️ Chuột phải: Di chuyển • Scroll: Phóng to/Thu nhỏ
+      <div className="absolute bottom-2.5 left-3 z-10 hidden sm:flex items-center gap-2 pointer-events-none">
+        <div className="text-[10px] text-slate-400 bg-slate-900/80 backdrop-blur-sm px-2 py-0.8 rounded-md border border-slate-800/70 shadow">
+          🖱️ Chuột trái: Xoay • Phải: Di chuyển • Cuộn: Phóng to
         </div>
-        {activeSection.enabled && (
-          <div className="text-[11px] text-amber-300 font-medium bg-amber-950/70 backdrop-blur-sm px-2.5 py-1 rounded-md border border-amber-500/40 animate-pulse">
-            ✂️ Giữ & Kéo chuột trên hình để tách 2 phần hoặc kéo về 0 để nhập lại khối
-          </div>
-        )}
       </div>
     </div>
   );
