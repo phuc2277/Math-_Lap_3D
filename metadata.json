@@ -1,0 +1,6 @@
+{
+  "name": "Math Lab",
+  "description": "Phòng Thí Nghiệm Toán Học Tương Tác 3D",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
