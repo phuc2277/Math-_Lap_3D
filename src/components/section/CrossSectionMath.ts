@@ -39,7 +39,7 @@ export function createCuttingPlane(
 
   // Point on plane = centerOrigin + offset * normal
   const pointOnPlane = centerOrigin.clone().add(normal.clone().multiplyScalar(offset));
-  
+
   // Plane equation: normal . p + constant = 0 => constant = - normal . pointOnPlane
   const constant = -normal.dot(pointOnPlane);
   const plane = new THREE.Plane(normal, constant);
@@ -65,7 +65,7 @@ export function getPolyhedronModelData(
     case 'cuboid': {
       const halfA = a / 2;
       const halfB = b / 2;
-      // 8 Vertices: bottom 0-3, top 4-7
+      // 8 Vertices: bottom 0-3 at y=0, top 4-7 at y=h
       vertices.push(
         new THREE.Vector3(-halfA, 0, -halfB), // 0: bottom-back-left
         new THREE.Vector3(halfA, 0, -halfB),  // 1: bottom-back-right
@@ -194,7 +194,7 @@ export function getPolyhedronModelData(
   return { vertices, edges, faces };
 }
 
-// Compute the exact 3D polygon cross section from intersecting edges with plane
+// Compute cross section for polyhedrons (Khối đa diện)
 export function computePolyhedronCrossSection(
   vertices: THREE.Vector3[],
   edges: [number, number][],
@@ -215,15 +215,15 @@ export function computePolyhedronCrossSection(
     const val1 = normal.dot(v1) + d;
     const val2 = normal.dot(v2) + d;
 
-    // Check if edge crosses or touches plane
-    if (Math.abs(val1) < 1e-5) {
-      if (!intersectionPoints.some((p) => p.distanceTo(v1) < 0.01)) {
+    // Check if edge touches or crosses plane
+    if (Math.abs(val1) < 1e-4) {
+      if (!intersectionPoints.some((p) => p.distanceTo(v1) < 0.02)) {
         intersectionPoints.push(v1.clone());
       }
       continue;
     }
-    if (Math.abs(val2) < 1e-5) {
-      if (!intersectionPoints.some((p) => p.distanceTo(v2) < 0.01)) {
+    if (Math.abs(val2) < 1e-4) {
+      if (!intersectionPoints.some((p) => p.distanceTo(v2) < 0.02)) {
         intersectionPoints.push(v2.clone());
       }
       continue;
@@ -232,7 +232,7 @@ export function computePolyhedronCrossSection(
     if ((val1 > 0 && val2 < 0) || (val1 < 0 && val2 > 0)) {
       const t = -val1 / (val2 - val1);
       const interPt = new THREE.Vector3().lerpVectors(v1, v2, t);
-      if (!intersectionPoints.some((p) => p.distanceTo(interPt) < 0.01)) {
+      if (!intersectionPoints.some((p) => p.distanceTo(interPt) < 0.02)) {
         intersectionPoints.push(interPt);
       }
     }
@@ -311,9 +311,9 @@ export function computePolyhedronCrossSection(
 
   if (n === 3) {
     const [s1, s2, s3] = sideLengths;
-    const isEqui = Math.abs(s1 - s2) < 0.05 && Math.abs(s2 - s3) < 0.05;
-    const isIso = Math.abs(s1 - s2) < 0.05 || Math.abs(s2 - s3) < 0.05 || Math.abs(s3 - s1) < 0.05;
-    const hasRightAngle = anglesDeg.some((ang) => Math.abs(ang - 90) < 1.5);
+    const isEqui = Math.abs(s1 - s2) < 0.08 && Math.abs(s2 - s3) < 0.08;
+    const isIso = Math.abs(s1 - s2) < 0.08 || Math.abs(s2 - s3) < 0.08 || Math.abs(s3 - s1) < 0.08;
+    const hasRightAngle = anglesDeg.some((ang) => Math.abs(ang - 90) < 2);
 
     if (isEqui) {
       shapeType = 'equilateral_triangle';
@@ -337,10 +337,10 @@ export function computePolyhedronCrossSection(
       descriptionVi = 'Mặt cắt là tam giác với 3 cạnh độ dài khác nhau.';
     }
   } else if (n === 4) {
-    const isAllRight = anglesDeg.every((ang) => Math.abs(ang - 90) < 2);
+    const isAllRight = anglesDeg.every((ang) => Math.abs(ang - 90) < 2.5);
     const [s1, s2, s3, s4] = sideLengths;
-    const isAllSidesEqual = Math.abs(s1 - s2) < 0.05 && Math.abs(s2 - s3) < 0.05 && Math.abs(s3 - s4) < 0.05;
-    const isOppositeEqual = Math.abs(s1 - s3) < 0.05 && Math.abs(s2 - s4) < 0.05;
+    const isAllSidesEqual = Math.abs(s1 - s2) < 0.08 && Math.abs(s2 - s3) < 0.08 && Math.abs(s3 - s4) < 0.08;
+    const isOppositeEqual = Math.abs(s1 - s3) < 0.08 && Math.abs(s2 - s4) < 0.08;
 
     if (isAllRight && isAllSidesEqual) {
       shapeType = 'square';
@@ -397,7 +397,6 @@ export function computeCurvedSolidCrossSection(
   const normal = plane.normal.clone().normalize();
   const d = plane.constant;
 
-  // Solid vertical range is y from 0 to h, center is (0, h/2, 0)
   const solidCenter = new THREE.Vector3(0, h / 2, 0);
   if (modelType === 'sphere') {
     solidCenter.set(0, r, 0);
@@ -409,7 +408,7 @@ export function computeCurvedSolidCrossSection(
   // 1. SPHERE (Hình Cầu) - Section is ALWAYS a circle (or empty if dist > r)
   if (modelType === 'sphere') {
     const sphereR = r;
-    if (Math.abs(distFromCenter) >= sphereR * 0.999) {
+    if (Math.abs(distFromCenter) >= sphereR * 0.99) {
       return null;
     }
 
@@ -459,14 +458,14 @@ export function computeCurvedSolidCrossSection(
   // 2. CYLINDER (Hình Trụ)
   if (modelType === 'cylinder') {
     const isHorizontal = Math.abs(normal.y) > 0.98; // Plane is parallel to base
-    const isVertical = Math.abs(normal.y) < 0.02;   // Plane is perpendicular to base
+    const isVertical = Math.abs(normal.y) < 0.05;   // Plane is perpendicular to base
 
     if (isHorizontal) {
       // Cut height y
       const yCut = -d / normal.y;
-      if (yCut < 0 || yCut > h) return null;
+      if (yCut < -0.01 || yCut > h + 0.01) return null;
 
-      const center3D = new THREE.Vector3(0, yCut, 0);
+      const center3D = new THREE.Vector3(0, Math.max(0, Math.min(h, yCut)), 0);
       const area = Math.PI * r * r;
       const perimeter = 2 * Math.PI * r;
 
@@ -474,7 +473,7 @@ export function computeCurvedSolidCrossSection(
       const vertices2D: THREE.Vector2[] = [];
       for (let i = 0; i < 64; i++) {
         const ang = (i / 64) * Math.PI * 2;
-        vertices3D.push(new THREE.Vector3(r * Math.cos(ang), yCut, r * Math.sin(ang)));
+        vertices3D.push(new THREE.Vector3(r * Math.cos(ang), center3D.y, r * Math.sin(ang)));
         vertices2D.push(new THREE.Vector2(r * Math.cos(ang), r * Math.sin(ang)));
       }
 
@@ -498,23 +497,31 @@ export function computeCurvedSolidCrossSection(
       };
     } else if (isVertical) {
       // Plane is vertical => Rectangular cross-section
-      const distFromAxis = Math.abs(d);
-      if (distFromAxis >= r) return null;
+      const normH = Math.sqrt(normal.x * normal.x + normal.z * normal.z);
+      const distFromAxis = normH > 0.001 ? Math.abs(d) / normH : Math.abs(d);
+      if (distFromAxis >= r * 0.99) return null;
 
       const chordHalfWidth = Math.sqrt(r * r - distFromAxis * distFromAxis);
       const width = 2 * chordHalfWidth;
       const area = width * h;
       const perimeter = 2 * (width + h);
 
+      // Horizontal normal and tangent vectors
+      const nh = new THREE.Vector3(normal.x, 0, normal.z).normalize();
+      const uh = new THREE.Vector3(-normal.z, 0, normal.x).normalize();
+      const pCenterH = nh.clone().multiplyScalar(-d / normH);
+
+      const v0 = pCenterH.clone().add(uh.clone().multiplyScalar(-chordHalfWidth)).setY(0);
+      const v1 = pCenterH.clone().add(uh.clone().multiplyScalar(chordHalfWidth)).setY(0);
+      const v2 = pCenterH.clone().add(uh.clone().multiplyScalar(chordHalfWidth)).setY(h);
+      const v3 = pCenterH.clone().add(uh.clone().multiplyScalar(-chordHalfWidth)).setY(h);
+
+      const center3D = pCenterH.clone().setY(h / 2);
+
       return {
         shapeType: 'rectangle',
-        shapeNameVi: distFromAxis < 0.05 ? 'Hình chữ nhật qua trục' : 'Hình chữ nhật song song trục',
-        vertices3D: [
-          new THREE.Vector3(-chordHalfWidth, 0, distFromAxis),
-          new THREE.Vector3(chordHalfWidth, 0, distFromAxis),
-          new THREE.Vector3(chordHalfWidth, h, distFromAxis),
-          new THREE.Vector3(-chordHalfWidth, h, distFromAxis),
-        ],
+        shapeNameVi: distFromAxis < 0.1 ? 'Hình chữ nhật qua trục' : 'Hình chữ nhật song song trục',
+        vertices3D: [v0, v1, v2, v3],
         vertices2D: [
           new THREE.Vector2(-chordHalfWidth, -h / 2),
           new THREE.Vector2(chordHalfWidth, -h / 2),
@@ -525,7 +532,7 @@ export function computeCurvedSolidCrossSection(
         perimeter,
         sideLengths: [width, h, width, h],
         anglesDeg: [90, 90, 90, 90],
-        center3D: new THREE.Vector3(0, h / 2, distFromAxis),
+        center3D,
         normal,
         planeConstant: d,
         descriptionVi: `Khi cắt hình trụ bởi mặt phẳng song song hoặc chứa trục, thiết diện nhận được là hình chữ nhật kích thước ${width.toFixed(2)} × ${h} cm.`,
@@ -535,24 +542,28 @@ export function computeCurvedSolidCrossSection(
       };
     } else {
       // Oblique Plane => Ellipse
-      const cosAngle = Math.abs(normal.y);
+      const cosAngle = Math.max(0.1, Math.abs(normal.y));
       const semiMinor = r;
-      const semiMajor = r / Math.max(0.1, cosAngle);
+      const semiMajor = r / cosAngle;
       const area = Math.PI * semiMajor * semiMinor;
       const perimeter = Math.PI * (3 * (semiMajor + semiMinor) - Math.sqrt((3 * semiMajor + semiMinor) * (semiMajor + 3 * semiMinor)));
 
-      const center3D = solidCenter.clone().sub(normal.clone().multiplyScalar(distFromCenter));
-      let u = new THREE.Vector3(1, 0, 0);
-      if (Math.abs(normal.dot(u)) > 0.9) u = new THREE.Vector3(0, 0, 1);
-      u.sub(normal.clone().multiplyScalar(normal.dot(u))).normalize();
+      const yCutCenter = THREE.MathUtils.clamp(-d / normal.y, h * 0.1, h * 0.9);
+      const center3D = new THREE.Vector3(0, yCutCenter, 0);
+
+      let u = new THREE.Vector3(-normal.z, 0, normal.x);
+      if (u.lengthSq() < 0.01) {
+        u.set(1, 0, 0);
+      }
+      u.normalize();
       const v = new THREE.Vector3().crossVectors(normal, u).normalize();
 
       const vertices3D: THREE.Vector3[] = [];
       const vertices2D: THREE.Vector2[] = [];
       for (let i = 0; i < 64; i++) {
         const ang = (i / 64) * Math.PI * 2;
-        const x2 = semiMajor * Math.cos(ang);
-        const y2 = semiMinor * Math.sin(ang);
+        const x2 = semiMinor * Math.cos(ang);
+        const y2 = semiMajor * Math.sin(ang);
         vertices3D.push(center3D.clone().add(u.clone().multiplyScalar(x2)).add(v.clone().multiplyScalar(y2)));
         vertices2D.push(new THREE.Vector2(x2, y2));
       }
@@ -581,15 +592,15 @@ export function computeCurvedSolidCrossSection(
   // 3. CONE (Hình Nón) - Conic Sections: Circle, Isosceles Triangle, Ellipse, Parabola, Hyperbola
   if (modelType === 'cone') {
     const isHorizontal = Math.abs(normal.y) > 0.98;
-    const isThroughApex = Math.abs(normal.dot(new THREE.Vector3(0, h, 0)) + d) < 0.1;
+    const isThroughApex = Math.abs(normal.dot(new THREE.Vector3(0, h, 0)) + d) < 0.15;
 
     if (isHorizontal) {
       // Horizontal cut => Smaller Circle
       const yCut = -d / normal.y;
-      if (yCut < 0 || yCut > h) return null;
+      if (yCut < -0.01 || yCut > h + 0.01) return null;
 
-      const cutR = Math.max(0.01, r * (1 - yCut / h));
-      const center3D = new THREE.Vector3(0, yCut, 0);
+      const cutR = Math.max(0.01, r * (1 - Math.max(0, Math.min(h, yCut)) / h));
+      const center3D = new THREE.Vector3(0, Math.max(0, Math.min(h, yCut)), 0);
       const area = Math.PI * cutR * cutR;
       const perimeter = 2 * Math.PI * cutR;
 
@@ -597,7 +608,7 @@ export function computeCurvedSolidCrossSection(
       const vertices2D: THREE.Vector2[] = [];
       for (let i = 0; i < 64; i++) {
         const ang = (i / 64) * Math.PI * 2;
-        vertices3D.push(new THREE.Vector3(cutR * Math.cos(ang), yCut, cutR * Math.sin(ang)));
+        vertices3D.push(new THREE.Vector3(cutR * Math.cos(ang), center3D.y, cutR * Math.sin(ang)));
         vertices2D.push(new THREE.Vector2(cutR * Math.cos(ang), cutR * Math.sin(ang)));
       }
 
@@ -621,22 +632,30 @@ export function computeCurvedSolidCrossSection(
       };
     } else if (isThroughApex) {
       // Plane passing through apex => Isosceles Triangle
-      const baseWidth = 2 * r;
-      const slantHeight = Math.sqrt(r * r + h * h);
-      const area = r * h;
+      const normH = Math.sqrt(normal.x * normal.x + normal.z * normal.z);
+      const distFromAxis = normH > 0.001 ? Math.abs(d + normal.y * 0) / normH : 0;
+      const groundCutDist = Math.min(r * 0.99, distFromAxis);
+      const chordHalfWidth = Math.sqrt(Math.max(0, r * r - groundCutDist * groundCutDist));
+      const baseWidth = 2 * chordHalfWidth;
+      const slantHeight = Math.sqrt(chordHalfWidth * chordHalfWidth + h * h);
+      const area = 0.5 * baseWidth * h;
       const perimeter = baseWidth + 2 * slantHeight;
+
+      const nh = normH > 0.001 ? new THREE.Vector3(normal.x, 0, normal.z).normalize() : new THREE.Vector3(0, 0, 1);
+      const uh = new THREE.Vector3(-nh.z, 0, nh.x).normalize();
+      const pCenterGround = nh.clone().multiplyScalar(-groundCutDist);
+
+      const v0 = pCenterGround.clone().add(uh.clone().multiplyScalar(-chordHalfWidth)).setY(0);
+      const v1 = pCenterGround.clone().add(uh.clone().multiplyScalar(chordHalfWidth)).setY(0);
+      const vApex = new THREE.Vector3(0, h, 0);
 
       return {
         shapeType: 'isosceles_triangle',
         shapeNameVi: 'Tam giác cân qua đỉnh',
-        vertices3D: [
-          new THREE.Vector3(-r, 0, 0),
-          new THREE.Vector3(r, 0, 0),
-          new THREE.Vector3(0, h, 0),
-        ],
+        vertices3D: [v0, v1, vApex],
         vertices2D: [
-          new THREE.Vector2(-r, 0),
-          new THREE.Vector2(r, 0),
+          new THREE.Vector2(-chordHalfWidth, 0),
+          new THREE.Vector2(chordHalfWidth, 0),
           new THREE.Vector2(0, h),
         ],
         area,
@@ -652,7 +671,7 @@ export function computeCurvedSolidCrossSection(
         conicType: 'triangle',
       };
     } else {
-      // General Conic Section (Ellipse / Parabola)
+      // General Conic Section (Ellipse / Parabola / Hyperbola)
       const slantAngle = Math.atan2(h, r); // Slant angle from base
       const planeAngle = Math.acos(Math.abs(normal.y)); // Plane inclination angle from horizontal
 

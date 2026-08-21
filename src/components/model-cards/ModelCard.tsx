@@ -2,6 +2,7 @@ import React from 'react';
 import { GeometryModelConfig } from '../../types/geometry';
 import { MathFormula } from '../math/MathFormula';
 import { ArrowRight, Box, Compass, Disc, CircleDot, Layers } from 'lucide-react';
+import { soundEffects } from '../../utils/audioEffects';
 
 interface ModelCardProps {
   model: GeometryModelConfig;
@@ -21,11 +22,21 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onExplore }) => {
         return <Compass className="w-6 h-6 text-purple-400" />;
       case 'sphere':
         return <CircleDot className="w-6 h-6 text-rose-400" />;
+      default:
+        return <Box className="w-6 h-6 text-sky-400" />;
     }
   };
 
+  const handleExplore = () => {
+    soundEffects.playPopSound();
+    onExplore(model.id);
+  };
+
   return (
-    <div className="group bg-slate-900/80 border border-slate-800 hover:border-sky-500/50 rounded-2xl p-5 transition-all duration-300 hover:shadow-2xl hover:shadow-sky-500/10 flex flex-col justify-between relative overflow-hidden">
+    <div
+      onClick={handleExplore}
+      className="group bg-slate-900/80 border border-slate-800 hover:border-sky-500/50 rounded-2xl p-5 transition-all duration-300 hover:shadow-2xl hover:shadow-sky-500/10 flex flex-col justify-between relative overflow-hidden cursor-pointer"
+    >
       {/* Decorative Gradient Glow */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-2xl group-hover:bg-sky-500/15 transition-all pointer-events-none" />
 
@@ -81,7 +92,10 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onExplore }) => {
           3D Interactive Model
         </span>
         <button
-          onClick={() => onExplore(model.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleExplore();
+          }}
           className="px-3.5 py-1.5 text-xs font-semibold text-white bg-sky-500 hover:bg-sky-400 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-sky-500/20 group-hover:translate-x-0.5"
         >
           <span>Khám phá</span>

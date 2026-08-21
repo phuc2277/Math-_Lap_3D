@@ -46,6 +46,9 @@ const ClippedGroup: React.FC<ClippedGroupProps> = ({
     groupRef.current.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (mesh.isMesh && mesh.material) {
+        // Only apply clipping planes to solid meshes that are NOT explicitly exempt
+        if (mesh.userData?.exemptFromClipping) return;
+
         if (Array.isArray(mesh.material)) {
           mesh.material.forEach((m) => {
             m.clippingPlanes = [clipPlane];
@@ -65,7 +68,7 @@ const ClippedGroup: React.FC<ClippedGroupProps> = ({
     if (!groupRef.current) return;
     groupRef.current.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
-      if (mesh.isMesh && mesh.material) {
+      if (mesh.isMesh && mesh.material && !mesh.userData?.exemptFromClipping) {
         const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
         if (!mat.clippingPlanes || mat.clippingPlanes[0] !== clipPlane) {
           if (Array.isArray(mesh.material)) {
@@ -161,7 +164,12 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
   const h = params.h ?? (modelType === 'sphere' ? (params.r ?? 3) * 2 : 5);
   const r = params.r ?? 3;
   const a = params.a ?? 4;
-  const solidCenter = useMemo(() => new THREE.Vector3(0, h / 2, 0), [h]);
+  const solidCenter = useMemo(() => {
+    if (modelType === 'sphere') {
+      return new THREE.Vector3(0, r, 0);
+    }
+    return new THREE.Vector3(0, h / 2, 0);
+  }, [h, r, modelType]);
 
   // Compute angles and offset based on orientation preset or custom angles
   const { effectivePitch, effectiveYaw, effectiveRoll, effectiveOffset } = useMemo(() => {
@@ -174,12 +182,12 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
       p = 0;
       y = 0;
       r_deg = 0;
-      off = position * (h / 2);
+      off = position * (h / 2.2);
     } else if (orientation === 'vertical') {
       p = 90;
       y = 0;
       r_deg = 0;
-      off = position * ((params.r ?? a / 2) * 0.8);
+      off = position * ((params.r ?? a / 2) * 0.85);
     } else if (orientation === 'diagonal_45') {
       p = 45;
       y = 0;
@@ -216,19 +224,23 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
     return solveCrossSection(modelType, params, plane);
   }, [modelType, params, plane]);
 
-  // Create clipping planes for positive and negative halves
-  const planePositive = useMemo(() => {
-    return new THREE.Plane(normal.clone().negate(), -plane.constant);
-  }, [normal, plane.constant]);
-
-  const planeNegative = useMemo(() => {
-    return new THREE.Plane(normal.clone(), plane.constant);
-  }, [normal, plane.constant]);
-
-  // Separation vector
+  // Separation distance
   const effectiveSep = isCut ? Math.max(0, separation) : 0;
+
+  // Separation vectors
   const sepPosVec = useMemo(() => normal.clone().multiplyScalar(effectiveSep), [normal, effectiveSep]);
   const sepNegVec = useMemo(() => normal.clone().multiplyScalar(-effectiveSep), [normal, effectiveSep]);
+
+  // Correct Clipping Planes (taking separation into account so world-space clipping stays exact)
+  const planePositive = useMemo(() => {
+    // Positive half keeps: normal . p_world + (constant - effectiveSep) >= 0
+    return new THREE.Plane(normal.clone(), plane.constant - effectiveSep);
+  }, [normal, plane.constant, effectiveSep]);
+
+  const planeNegative = useMemo(() => {
+    // Negative half keeps: -normal . p_world + (-constant - effectiveSep) >= 0
+    return new THREE.Plane(normal.clone().negate(), -plane.constant - effectiveSep);
+  }, [normal, plane.constant, effectiveSep]);
 
   // Handle Drag Start
   const startDrag = useCallback(
@@ -386,7 +398,7 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
   }, [extractSection, intersection, normal, extractOffset]);
 
   // Plane visual size
-  const planeSize = Math.max(8, (params.r ?? a) * 3);
+  const planeSize = Math.max(7, (params.r ?? a) * 2.8);
 
   // Render Base Solid Child Meshes
   const renderSolidChildren = () => {
@@ -443,7 +455,7 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
 
   return (
     <group name="universal-cross-section-engine">
-      {/* 1. SEMI-TRANSPARENT 3D CUTTING PLANE */}
+      {/* 1. SEMI-TRANSPARENT 3D CUTTING PLANE (Mặt phẳng cắt alpha) */}
       {!isCut && (
         <group
           position={pointOnPlane.toArray()}
@@ -465,7 +477,7 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
           >
             {/* Plane Quad Mesh */}
             <mesh>
-              <planeGeometry args={[planeSize, planeSize, 8, 8]} />
+              <planeGeometry args={[planeSize, planeSize, 4, 4]} />
               <meshStandardMaterial
                 color="#f43f5e"
                 emissive="#f43f5e"
@@ -492,28 +504,16 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
 
             {/* Grid Lines on Cutting Plane */}
             <gridHelper
-              args={[planeSize, 12, '#fb7185', '#fda4af']}
+              args={[planeSize, 10, '#fb7185', '#fda4af']}
               rotation={[Math.PI / 2, 0, 0]}
               position={[0, 0, 0.005]}
             />
-
-            {/* Normal Vector Arrow */}
-            <arrowHelper
-              args={[
-                new THREE.Vector3(0, 0, 1),
-                new THREE.Vector3(0, 0, 0),
-                2,
-                0x0ea5e9,
-                0.4,
-                0.2,
-              ]}
-            />
           </group>
 
-          {/* Plane Name & Drag Invitation Label */}
+          {/* Plane Name & Quick Action Label */}
           <group position={[normal.x * 1.5, normal.y * 1.5 + 0.3, normal.z * 1.5]}>
             <Text
-              fontSize={0.28}
+              fontSize={0.24}
               color="#fda4af"
               anchorX="center"
               anchorY="middle"
@@ -523,21 +523,21 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
               Mặt phẳng cắt (α)
             </Text>
             <Text
-              position={[0, -0.32, 0]}
-              fontSize={0.2}
+              position={[0, -0.28, 0]}
+              fontSize={0.18}
               color="#38bdf8"
               anchorX="center"
               anchorY="middle"
               outlineWidth={0.02}
               outlineColor="#0f172a"
             >
-              🖱️ Nhấp hoặc Kéo chuột để cắt & tách 2 phần
+              ✂️ Bấm "Cắt rời 2 phần" ở bảng bên phải để tách
             </Text>
           </group>
         </group>
       )}
 
-      {/* 2. REAL SPLIT SOLID HALVES (When Cut or Separated) WITH DIRECT MOUSE DRAG */}
+      {/* 2. REAL SPLIT SOLID HALVES (When Cut is Executed) WITH DIRECT MOUSE SEPARATION */}
       {isCut && (
         <>
           {/* Positive Half (Nửa A - Kéo hướng dương) */}
@@ -557,9 +557,9 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
           >
             {renderSolidChildren()}
 
-            {/* Solid Capping Face on Half A */}
+            {/* Solid Capping Face on Half A (Exempt from clipping so it never clips itself) */}
             {showCap && capMeshGeometry && (
-              <mesh geometry={capMeshGeometry}>
+              <mesh geometry={capMeshGeometry} userData={{ exemptFromClipping: true }}>
                 <meshStandardMaterial
                   color={hoveredPart === 'pos' ? '#fb7185' : '#f43f5e'}
                   emissive="#e11d48"
@@ -589,9 +589,9 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
           >
             {renderSolidChildren()}
 
-            {/* Solid Capping Face on Half B */}
+            {/* Solid Capping Face on Half B (Exempt from clipping) */}
             {showCap && capMeshGeometry && (
-              <mesh geometry={capMeshGeometry}>
+              <mesh geometry={capMeshGeometry} userData={{ exemptFromClipping: true }}>
                 <meshStandardMaterial
                   color={hoveredPart === 'neg' ? '#38bdf8' : '#0284c7'}
                   emissive="#0369a1"
@@ -606,34 +606,6 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
 
           {/* 3D INTERACTIVE SEPARATION GIZMO & DRAG HANDLES */}
           <group name="separation-interactive-gizmo">
-            {/* Center Distance Line connecting the two halves */}
-            {effectiveSep > 0.05 && (
-              <line>
-                <bufferGeometry>
-                  <bufferAttribute
-                    attach="attributes-position"
-                    args={[
-                      new Float32Array([
-                        posGizmoPos.x,
-                        posGizmoPos.y,
-                        posGizmoPos.z,
-                        negGizmoPos.x,
-                        negGizmoPos.y,
-                        negGizmoPos.z,
-                      ]),
-                      3,
-                    ]}
-                  />
-                </bufferGeometry>
-                <lineDashedMaterial
-                  color="#fbbf24"
-                  dashSize={0.2}
-                  gapSize={0.1}
-                  linewidth={2.5}
-                />
-              </line>
-            )}
-
             {/* Positive Arrow Gizmo Handle */}
             <group
               position={posGizmoPos.toArray()}
@@ -648,9 +620,8 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                 setHoveredPart(null);
               }}
             >
-              {/* Outer Glow Sphere */}
               <mesh>
-                <sphereGeometry args={[0.22, 24, 24]} />
+                <sphereGeometry args={[0.2, 20, 20]} />
                 <meshStandardMaterial
                   color="#f43f5e"
                   emissive="#fb7185"
@@ -660,15 +631,14 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                   opacity={0.9}
                 />
               </mesh>
-              {/* Arrow Icon Cone */}
               <mesh
-                position={[normal.x * 0.3, normal.y * 0.3, normal.z * 0.3]}
+                position={[normal.x * 0.28, normal.y * 0.28, normal.z * 0.28]}
                 quaternion={new THREE.Quaternion().setFromUnitVectors(
                   new THREE.Vector3(0, 1, 0),
                   normal
                 )}
               >
-                <coneGeometry args={[0.16, 0.35, 16]} />
+                <coneGeometry args={[0.14, 0.3, 16]} />
                 <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} />
               </mesh>
             </group>
@@ -687,9 +657,8 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                 setHoveredPart(null);
               }}
             >
-              {/* Outer Glow Sphere */}
               <mesh>
-                <sphereGeometry args={[0.22, 24, 24]} />
+                <sphereGeometry args={[0.2, 20, 20]} />
                 <meshStandardMaterial
                   color="#0284c7"
                   emissive="#38bdf8"
@@ -699,25 +668,23 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                   opacity={0.9}
                 />
               </mesh>
-              {/* Arrow Icon Cone */}
               <mesh
-                position={[-normal.x * 0.3, -normal.y * 0.3, -normal.z * 0.3]}
+                position={[-normal.x * 0.28, -normal.y * 0.28, -normal.z * 0.28]}
                 quaternion={new THREE.Quaternion().setFromUnitVectors(
                   new THREE.Vector3(0, 1, 0),
                   normal.clone().negate()
                 )}
               >
-                <coneGeometry args={[0.16, 0.35, 16]} />
+                <coneGeometry args={[0.14, 0.3, 16]} />
                 <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} />
               </mesh>
             </group>
 
-            {/* Floating Interactive 3D Status Badge & Snap / Separate Button */}
-            <group position={[pointOnPlane.x, pointOnPlane.y + (h > 6 ? 2.5 : 2.0), pointOnPlane.z]}>
-              {/* Distance Display Pill */}
+            {/* Floating Interactive 3D Distance Display & Quick Button */}
+            <group position={[pointOnPlane.x, pointOnPlane.y + (h > 5 ? 2.3 : 1.8), pointOnPlane.z]}>
               <Text
-                position={[0, 0.45, 0]}
-                fontSize={0.24}
+                position={[0, 0.4, 0]}
+                fontSize={0.22}
                 color={effectiveSep > 0.05 ? '#fbbf24' : '#34d399'}
                 anchorX="center"
                 anchorY="middle"
@@ -729,7 +696,7 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                   : '✨ Hai phần đang chập khít (0 cm)'}
               </Text>
 
-              {/* Interactive 3D Click Button to Snap / Separate */}
+              {/* Click to Snap / Separate Button */}
               <group
                 onClick={handleToggleSnap}
                 onPointerOver={(e) => {
@@ -742,9 +709,8 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                   setHoveredPart(null);
                 }}
               >
-                {/* Button Background Mesh */}
                 <mesh position={[0, 0, -0.02]}>
-                  <planeGeometry args={[3.6, 0.6]} />
+                  <planeGeometry args={[3.4, 0.55]} />
                   <meshStandardMaterial
                     color={
                       hoveredPart === 'snapBtn'
@@ -763,7 +729,7 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                   />
                 </mesh>
                 <lineSegments position={[0, 0, -0.01]}>
-                  <edgesGeometry args={[new THREE.PlaneGeometry(3.6, 0.6)]} />
+                  <edgesGeometry args={[new THREE.PlaneGeometry(3.4, 0.55)]} />
                   <lineBasicMaterial
                     color={effectiveSep > 0.05 ? '#38bdf8' : '#fb7185'}
                     linewidth={2}
@@ -772,7 +738,7 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
 
                 <Text
                   position={[0, 0, 0.03]}
-                  fontSize={0.21}
+                  fontSize={0.2}
                   color={hoveredPart === 'snapBtn' ? '#ffffff' : '#f8fafc'}
                   anchorX="center"
                   anchorY="middle"
@@ -784,29 +750,16 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                     : '↔️ Bấm hoặc Kéo để TÁCH 2 PHẦN'}
                 </Text>
               </group>
-
-              {/* Drag Guide Hint */}
-              <Text
-                position={[0, -0.45, 0]}
-                fontSize={0.17}
-                color="#cbd5e1"
-                anchorX="center"
-                anchorY="middle"
-                outlineWidth={0.02}
-                outlineColor="#0f172a"
-              >
-                🖱️ Dùng chuột bấm & kéo 2 nửa khối để tách xa hoặc kéo về 0 để nhập lại
-              </Text>
             </group>
           </group>
         </>
       )}
 
-      {/* 3. HIGHLIGHTED CROSS-SECTION CONTOUR & PROFILE (👁 Hiện mặt cắt) */}
-      {showSectionFace && intersection && (
-        <group position={pointOnPlane.toArray()}>
-          {/* 3D Cap Mesh when not cut */}
-          {capMeshGeometry && !isCut && (
+      {/* 3. HIGHLIGHTED CROSS-SECTION CONTOUR & PROFILE DIRECTLY ON SOLID (When not cut) */}
+      {!isCut && showSectionFace && intersection && (
+        <group position={[0, 0, 0]}>
+          {/* Semi-transparent 3D Cap Mesh highlighting the cross-section plane area */}
+          {capMeshGeometry && (
             <mesh geometry={capMeshGeometry}>
               <meshStandardMaterial
                 color="#f43f5e"
@@ -814,14 +767,14 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                 emissiveIntensity={0.4}
                 roughness={0.2}
                 transparent
-                opacity={0.88}
+                opacity={0.85}
                 side={THREE.DoubleSide}
               />
             </mesh>
           )}
 
-          {/* Glowing Contour Edges */}
-          {showContour && intersection.vertices3D && intersection.vertices3D.length > 2 && (
+          {/* Glowing Contour Edges & Corner Vertices */}
+          {showContour && intersection.vertices3D && intersection.vertices3D.length >= 3 && (
             <group>
               {intersection.vertices3D.map((pt, idx) => {
                 const nextPt = intersection.vertices3D[(idx + 1) % intersection.vertices3D.length];
@@ -830,9 +783,9 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
 
                 return (
                   <group key={`contour-edge-${idx}`}>
-                    {/* Glowing Vertex Point */}
+                    {/* Glowing Vertex Point Marker */}
                     <mesh position={pt.toArray()}>
-                      <sphereGeometry args={[0.08, 16, 16]} />
+                      <sphereGeometry args={[0.07, 16, 16]} />
                       <meshStandardMaterial
                         color="#ffffff"
                         emissive="#38bdf8"
@@ -840,7 +793,7 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                       />
                     </mesh>
 
-                    {/* Edge Line */}
+                    {/* Edge Line Segment */}
                     <line>
                       <bufferGeometry>
                         <bufferAttribute
@@ -852,10 +805,10 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
                     </line>
 
                     {/* Side Length Label */}
-                    {showDimensions && sideLen > 0.3 && (
+                    {showDimensions && sideLen > 0.4 && (
                       <Text
                         position={[edgeCenter.x, edgeCenter.y + 0.15, edgeCenter.z]}
-                        fontSize={0.2}
+                        fontSize={0.19}
                         color="#38bdf8"
                         anchorX="center"
                         anchorY="middle"
@@ -871,59 +824,20 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
             </group>
           )}
 
-          {/* Conic Section (Circle / Ellipse for Cylinder/Cone/Sphere) */}
+          {/* Outer Perimeter Ring for Conics */}
           {intersection.isConic && intersection.vertices3D && intersection.vertices3D.length > 0 && (
-            <group>
-              <mesh>
-                <bufferGeometry>
-                  <bufferAttribute
-                    attach="attributes-position"
-                    args={[
-                      new Float32Array(
-                        intersection.vertices3D.flatMap((p, i) => {
-                          const next = intersection.vertices3D[(i + 1) % intersection.vertices3D.length];
-                          return [
-                            intersection.center3D.x,
-                            intersection.center3D.y,
-                            intersection.center3D.z,
-                            p.x,
-                            p.y,
-                            p.z,
-                            next.x,
-                            next.y,
-                            next.z,
-                          ];
-                        })
-                      ),
-                      3,
-                    ]}
-                  />
-                </bufferGeometry>
-                <meshStandardMaterial
-                  color="#ec4899"
-                  emissive="#db2777"
-                  emissiveIntensity={0.35}
-                  roughness={0.2}
-                  transparent
-                  opacity={0.85}
-                  side={THREE.DoubleSide}
+            <lineLoop>
+              <bufferGeometry>
+                <bufferAttribute
+                  attach="attributes-position"
+                  args={[
+                    new Float32Array(intersection.vertices3D.flatMap((p) => [p.x, p.y, p.z])),
+                    3,
+                  ]}
                 />
-              </mesh>
-
-              {/* Outer Perimeter Ring */}
-              <lineLoop>
-                <bufferGeometry>
-                  <bufferAttribute
-                    attach="attributes-position"
-                    args={[
-                      new Float32Array(intersection.vertices3D.flatMap((p) => [p.x, p.y, p.z])),
-                      3,
-                    ]}
-                  />
-                </bufferGeometry>
-                <lineBasicMaterial color="#ffffff" linewidth={3} />
-              </lineLoop>
-            </group>
+              </bufferGeometry>
+              <lineBasicMaterial color="#38bdf8" linewidth={3} />
+            </lineLoop>
           )}
         </group>
       )}
@@ -931,10 +845,10 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
       {/* 4. EXTRACTED 2D CROSS SECTION (🎯 Tách mặt cắt ra ngoài & xoay trực diện) */}
       {extractSection && extractedTransform && intersection && (
         <group position={extractedTransform.position.toArray()}>
-          <group quaternion={camera.quaternion} scale={1.2}>
+          <group quaternion={camera.quaternion} scale={1.15}>
             {/* Background 2D Presentation Board */}
             <mesh position={[0, 0, -0.05]}>
-              <planeGeometry args={[4.6, 4.6]} />
+              <planeGeometry args={[4.4, 4.4]} />
               <meshStandardMaterial
                 color="#0f172a"
                 roughness={0.3}
@@ -945,119 +859,72 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
               />
             </mesh>
             <lineSegments position={[0, 0, -0.04]}>
-              <edgesGeometry args={[new THREE.PlaneGeometry(4.6, 4.6)]} />
+              <edgesGeometry args={[new THREE.PlaneGeometry(4.4, 4.4)]} />
               <lineBasicMaterial color="#38bdf8" linewidth={2} />
             </lineSegments>
 
-            {/* 2D Flat Polygon Mesh */}
-            {intersection.vertices2D && intersection.vertices2D.length >= 3 && (
-              <group position={[0, 0.2, 0.02]}>
-                <mesh>
-                  <bufferGeometry>
-                    <bufferAttribute
-                      attach="attributes-position"
-                      args={[
-                        new Float32Array(
-                          intersection.vertices2D.flatMap((p, i) => {
-                            const next = intersection.vertices2D[(i + 1) % intersection.vertices2D.length];
-                            return [0, 0, 0, p.x * 0.5, p.y * 0.5, 0, next.x * 0.5, next.y * 0.5, 0];
-                          })
-                        ),
-                        3,
-                      ]}
-                    />
-                  </bufferGeometry>
-                  <meshStandardMaterial
-                    color="#f43f5e"
-                    emissive="#e11d48"
-                    emissiveIntensity={0.5}
-                    side={THREE.DoubleSide}
-                  />
-                </mesh>
-
-                {/* 2D Contour */}
-                <lineLoop>
-                  <bufferGeometry>
-                    <bufferAttribute
-                      attach="attributes-position"
-                      args={[
-                        new Float32Array(
-                          intersection.vertices2D.flatMap((p) => [p.x * 0.5, p.y * 0.5, 0.01])
-                        ),
-                        3,
-                      ]}
-                    />
-                  </bufferGeometry>
-                  <lineBasicMaterial color="#ffffff" linewidth={3} />
-                </lineLoop>
-
-                {/* 2D Vertex Points & Labels */}
-                {intersection.vertices2D.map((p, idx) => {
-                  const letter = String.fromCharCode(65 + idx);
-                  return (
-                    <group key={`2d-pt-${idx}`} position={[p.x * 0.5, p.y * 0.5, 0.03]}>
-                      <mesh>
-                        <circleGeometry args={[0.08, 16]} />
-                        <meshBasicMaterial color="#38bdf8" />
-                      </mesh>
-                      <Text
-                        position={[p.x > 0 ? 0.22 : -0.22, p.y > 0 ? 0.22 : -0.22, 0.01]}
-                        fontSize={0.2}
-                        color="#ffffff"
-                        outlineWidth={0.02}
-                        outlineColor="#0284c7"
-                      >
-                        {`${letter}'`}
-                      </Text>
-                    </group>
-                  );
-                })}
-              </group>
-            )}
-
             {/* Header Badge */}
             <Text
-              position={[0, 1.85, 0.05]}
-              fontSize={0.24}
+              position={[0, 1.8, 0]}
+              fontSize={0.22}
               color="#38bdf8"
               anchorX="center"
               anchorY="middle"
+              outlineWidth={0.03}
+              outlineColor="#0f172a"
+            >
+              {`✨ Thiết Diện: ${intersection.shapeNameVi}`}
+            </Text>
+
+            {/* 2D Flat Polygon Mesh */}
+            {intersection.vertices2D && intersection.vertices2D.length >= 3 && (
+              <mesh position={[0, 0.2, 0]}>
+                <bufferGeometry>
+                  <bufferAttribute
+                    attach="attributes-position"
+                    args={[
+                      new Float32Array(
+                        intersection.vertices2D.flatMap((p, i) => {
+                          const next = intersection.vertices2D[(i + 1) % intersection.vertices2D.length];
+                          return [0, 0, 0, p.x, p.y, 0, next.x, next.y, 0];
+                        })
+                      ),
+                      3,
+                    ]}
+                  />
+                </bufferGeometry>
+                <meshStandardMaterial
+                  color="#f43f5e"
+                  emissive="#fb7185"
+                  emissiveIntensity={0.4}
+                  roughness={0.2}
+                  side={THREE.DoubleSide}
+                />
+              </mesh>
+            )}
+
+            {/* Area & Perimeter Info */}
+            <Text
+              position={[0, -1.35, 0]}
+              fontSize={0.19}
+              color="#fbbf24"
+              anchorX="center"
+              anchorY="middle"
               outlineWidth={0.02}
-              outlineColor="#0284c7"
+              outlineColor="#0f172a"
             >
-              🎯 THIẾT DIỆN THỰC TẾ
-            </Text>
-
-            {/* Shape Name */}
-            <Text
-              position={[0, 1.5, 0.05]}
-              fontSize={0.28}
-              color="#fb7185"
-              anchorX="center"
-              anchorY="middle"
-            >
-              {intersection.shapeNameVi}
-            </Text>
-
-            {/* Metrics Info Text */}
-            <Text
-              position={[0, -1.3, 0.05]}
-              fontSize={0.18}
-              color="#cbd5e1"
-              anchorX="center"
-              anchorY="middle"
-            >
-              {`Diện tích S ≈ ${intersection.area.toFixed(2)} cm² | Chu vi P ≈ ${intersection.perimeter.toFixed(2)} cm`}
+              {`Diện tích: S = ${intersection.area.toFixed(2)} cm²`}
             </Text>
             <Text
-              position={[0, -1.65, 0.05]}
-              fontSize={0.14}
+              position={[0, -1.7, 0]}
+              fontSize={0.17}
               color="#94a3b8"
               anchorX="center"
               anchorY="middle"
-              maxWidth={3.8}
+              outlineWidth={0.02}
+              outlineColor="#0f172a"
             >
-              {intersection.descriptionVi}
+              {`Chu vi: P = ${intersection.perimeter.toFixed(2)} cm`}
             </Text>
           </group>
         </group>
@@ -1065,4 +932,3 @@ export const UniversalCrossSection3D: React.FC<UniversalCrossSection3DProps> = (
     </group>
   );
 };
-

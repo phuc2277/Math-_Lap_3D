@@ -12,8 +12,27 @@ export interface ExperimentSlugDefinition {
   descriptionVi: string;
 }
 
+// Canonical Registry
 export const SLUG_TO_EXPERIMENT_REGISTRY: Record<string, ExperimentSlugDefinition> = {
-  // 1. Khối 3D
+  // 1. Khối 3D Chính
+  'hinh-hop-chu-nhat': {
+    slug: 'hinh-hop-chu-nhat',
+    modelType: 'cuboid',
+    titleVi: 'Mô hình Hình Hộp Chữ Nhật 3D',
+    category: '3d-solid',
+    grade: 8,
+    curriculumLessonId: 'toan8-hinh-hop-chu-nhat',
+    descriptionVi: 'Quan sát các mặt, đỉnh, cạnh, đường chéo và mặt cắt hình hộp chữ nhật.',
+  },
+  'hinh-lap-phuong': {
+    slug: 'hinh-lap-phuong',
+    modelType: 'cube',
+    titleVi: 'Mô hình Hình Lập Phương 3D',
+    category: '3d-solid',
+    grade: 8,
+    curriculumLessonId: 'toan8-hinh-lap-phuong',
+    descriptionVi: 'Hình lập phương 6 mặt vuông bằng nhau, khai triển hộp và các dạng mặt cắt đa giác.',
+  },
   'hinh-tru': {
     slug: 'hinh-tru',
     modelType: 'cylinder',
@@ -41,23 +60,23 @@ export const SLUG_TO_EXPERIMENT_REGISTRY: Record<string, ExperimentSlugDefinitio
     curriculumLessonId: 'toan9-hinh-cau',
     descriptionVi: 'Mô hình khối cầu, mặt cắt đi qua tâm, diện tích mặt cầu và thể tích khối cầu.',
   },
-  'hinh-hop-chu-nhat': {
-    slug: 'hinh-hop-chu-nhat',
-    modelType: 'cuboid',
-    titleVi: 'Mô hình Hình Hộp Chữ Nhật 3D',
+  'hinh-lang-tru-dung-tam-giac': {
+    slug: 'hinh-lang-tru-dung-tam-giac',
+    modelType: 'prism',
+    titleVi: 'Hình Lăng Trụ Đứng Tam Giác',
     category: '3d-solid',
-    grade: 8,
-    curriculumLessonId: 'toan8-hinh-hop-chu-nhat',
-    descriptionVi: 'Quan sát các mặt, đỉnh, cạnh, đường chéo và mặt cắt hình hộp chữ nhật.',
+    grade: 7,
+    curriculumLessonId: 'toan7-lang-tru-tam-giac',
+    descriptionVi: '2 đáy là tam giác, các mặt bên là hình chữ nhật.',
   },
-  'hinh-lap-phuong': {
-    slug: 'hinh-lap-phuong',
-    modelType: 'cube',
-    titleVi: 'Mô hình Hình Lập Phương 3D',
+  'hinh-lang-tru-dung-tu-giac': {
+    slug: 'hinh-lang-tru-dung-tu-giac',
+    modelType: 'prism_quad',
+    titleVi: 'Hình Lăng Trụ Đứng Tứ Giác',
     category: '3d-solid',
-    grade: 8,
-    curriculumLessonId: 'toan8-hinh-lap-phuong',
-    descriptionVi: 'Hình lập phương 6 mặt vuông bằng nhau, khai triển hộp và các dạng mặt cắt đa giác.',
+    grade: 7,
+    curriculumLessonId: 'toan7-lang-tru-tu-giac',
+    descriptionVi: '2 đáy là tứ giác, các mặt bên là hình chữ nhật vuông góc với đáy.',
   },
   'hinh-chop-tu-giac-deu': {
     slug: 'hinh-chop-tu-giac-deu',
@@ -76,24 +95,6 @@ export const SLUG_TO_EXPERIMENT_REGISTRY: Record<string, ExperimentSlugDefinitio
     grade: 8,
     curriculumLessonId: 'toan8-chop-tam-giac-deu',
     descriptionVi: 'Đáy là tam giác đều, 3 mặt bên là tam giác cân bằng nhau.',
-  },
-  'hinh-lang-tru-dung-tam-giac': {
-    slug: 'hinh-lang-tru-dung-tam-giac',
-    modelType: 'prism',
-    titleVi: 'Hình Lăng Trụ Đứng Tam Giác',
-    category: '3d-solid',
-    grade: 7,
-    curriculumLessonId: 'toan7-lang-tru-tam-giac',
-    descriptionVi: '2 đáy là tam giác, các mặt bên là hình chữ nhật.',
-  },
-  'hinh-lang-tru-dung-tu-giac': {
-    slug: 'hinh-lang-tru-dung-tu-giac',
-    modelType: 'prism_quad',
-    titleVi: 'Hình Lăng Trụ Đứng Tứ Giác',
-    category: '3d-solid',
-    grade: 7,
-    curriculumLessonId: 'toan7-lang-tru-tu-giac',
-    descriptionVi: '2 đáy là tứ giác, các mặt bên là hình chữ nhật vuông góc với đáy.',
   },
 
   // 2. Hình học phẳng động (2D)
@@ -182,13 +183,157 @@ export const SLUG_TO_EXPERIMENT_REGISTRY: Record<string, ExperimentSlugDefinitio
   },
 };
 
-export function getExperimentBySlug(slug: string): ExperimentSlugDefinition | undefined {
-  if (!slug) return undefined;
-  const cleanSlug = slug.toLowerCase().trim().replace(/^\/experiment\//, '').replace(/^\//, '');
-  return SLUG_TO_EXPERIMENT_REGISTRY[cleanSlug];
+// Aliases mapping Model IDs, Lab IDs, Model Types, and Lesson IDs to their canonical Experiment Slug
+const SLUG_ALIASES: Record<string, string> = {
+  // Model IDs from GEOMETRY_MODELS
+  'cuboid-001': 'hinh-hop-chu-nhat',
+  'cube-001': 'hinh-lap-phuong',
+  'cylinder-001': 'hinh-tru',
+  'cone-001': 'hinh-non',
+  'sphere-001': 'hinh-cau',
+  'prism-001': 'hinh-lang-tru-dung-tam-giac',
+  'prism-quad-001': 'hinh-lang-tru-dung-tu-giac',
+  'pyramid-001': 'hinh-chop-tu-giac-deu',
+  'pyramid-triangular-001': 'hinh-chop-tam-giac-deu',
+  'congruent-triangles-001': 'hai-tam-giac-bang-nhau',
+  'similar-triangles-001': 'tam-giac-dong-dang',
+  'pythagorean-theorem-001': 'dinh-ly-pythagore',
+  'line-circle-001': 'duong-thang-duong-tron',
+  'two-circles-001': 'hai-duong-tron',
+  'graph-linear-001': 'do-thi-bac-nhat',
+  'graph-parabola-001': 'do-thi-bac-hai',
+  'prob-sim-001': 'xac-suat-dong-xu',
+  'stat-sim-001': 'xac-suat-xuc-xac',
+
+  // Raw Model Types
+  'cuboid': 'hinh-hop-chu-nhat',
+  'cube': 'hinh-lap-phuong',
+  'cylinder': 'hinh-tru',
+  'cone': 'hinh-non',
+  'sphere': 'hinh-cau',
+  'prism': 'hinh-lang-tru-dung-tam-giac',
+  'prism_quad': 'hinh-lang-tru-dung-tu-giac',
+  'pyramid': 'hinh-chop-tu-giac-deu',
+  'pyramid_triangular': 'hinh-chop-tam-giac-deu',
+  'congruent_triangles': 'hai-tam-giac-bang-nhau',
+  'similar_triangles': 'tam-giac-dong-dang',
+  'pythagorean_theorem': 'dinh-ly-pythagore',
+  'line_circle': 'duong-thang-duong-tron',
+  'two_circles': 'hai-duong-tron',
+  'graph_linear': 'do-thi-bac-nhat',
+  'graph_parabola': 'do-thi-bac-hai',
+  'probability_sim': 'xac-suat-dong-xu',
+  'stat_sim': 'xac-suat-xuc-xac',
+
+  // Lab IDs from LocalLabDataAdapter
+  'lab-cuboid-001': 'hinh-hop-chu-nhat',
+  'lab-cube-001': 'hinh-lap-phuong',
+  'lab-cylinder-001': 'hinh-tru',
+  'lab-cylinder-unfold-001': 'hinh-tru',
+  'lab-cylinder-volume-001': 'hinh-tru',
+  'lab-cone-001': 'hinh-non',
+  'lab-sphere-001': 'hinh-cau',
+  'lab-prism-001': 'hinh-lang-tru-dung-tam-giac',
+  'lab-prism-quad-001': 'hinh-lang-tru-dung-tu-giac',
+  'lab-pyramid-001': 'hinh-chop-tu-giac-deu',
+  'lab-pyramid-triangular-001': 'hinh-chop-tam-giac-deu',
+
+  // Lesson IDs from lessons.ts
+  'les-001': 'hinh-hop-chu-nhat',
+  'les-002': 'hinh-lap-phuong',
+  'les-003': 'hinh-tru',
+  'les-004': 'hinh-non',
+  'les-005': 'hinh-cau',
+  'les-006': 'hinh-lang-tru-dung-tam-giac',
+  'les-007': 'hinh-chop-tam-giac-deu',
+  'les-008': 'do-thi-bac-nhat',
+  'les-009': 'do-thi-bac-hai',
+  'les-010': 'xac-suat-dong-xu',
+  'les-011': 'xac-suat-xuc-xac',
+
+  // Text-book lesson identifiers
+  'lop8-hinh-hop-chu-nhat': 'hinh-hop-chu-nhat',
+  'lop8-hinh-lap-phuong': 'hinh-lap-phuong',
+  'lop9-hinh-tru': 'hinh-tru',
+  'lop9-hinh-non': 'hinh-non',
+  'lop9-hinh-cau': 'hinh-cau',
+  'lop7-hinh-lang-tru-dung': 'hinh-lang-tru-dung-tam-giac',
+  'lop7-lang-tru-tam-giac': 'hinh-lang-tru-dung-tam-giac',
+  'lop7-lang-tru-tu-giac': 'hinh-lang-tru-dung-tu-giac',
+  'lop8-hinh-chop-tu-giac-deu': 'hinh-chop-tu-giac-deu',
+  'lop8-hinh-chop-tam-giac-deu': 'hinh-chop-tam-giac-deu',
+  'toan8-hinh-hop-chu-nhat': 'hinh-hop-chu-nhat',
+  'toan8-hinh-lap-phuong': 'hinh-lap-phuong',
+  'toan9-hinh-tru': 'hinh-tru',
+  'toan9-hinh-non': 'hinh-non',
+  'toan9-hinh-cau': 'hinh-cau',
+  'toan7-lang-tru-tam-giac': 'hinh-lang-tru-dung-tam-giac',
+  'toan7-lang-tru-tu-giac': 'hinh-lang-tru-dung-tu-giac',
+  'toan8-chop-tu-giac-deu': 'hinh-chop-tu-giac-deu',
+  'toan8-chop-tam-giac-deu': 'hinh-chop-tam-giac-deu',
+};
+
+export function getExperimentBySlug(rawSlugOrId: string): ExperimentSlugDefinition | undefined {
+  if (!rawSlugOrId) return undefined;
+  const clean = rawSlugOrId
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\/[^/]+/, '')
+    .replace(/^\/experiment\//, '')
+    .replace(/^\/demo\//, '')
+    .replace(/^\/share\/[^/]+\/?/, '')
+    .replace(/^\//, '');
+
+  // 1. Direct registry hit
+  if (SLUG_TO_EXPERIMENT_REGISTRY[clean]) {
+    return SLUG_TO_EXPERIMENT_REGISTRY[clean];
+  }
+
+  // 2. Alias lookup
+  const canonicalSlug = SLUG_ALIASES[clean];
+  if (canonicalSlug && SLUG_TO_EXPERIMENT_REGISTRY[canonicalSlug]) {
+    return SLUG_TO_EXPERIMENT_REGISTRY[canonicalSlug];
+  }
+
+  // 3. Fallback: Search by modelType
+  const matchByType = Object.values(SLUG_TO_EXPERIMENT_REGISTRY).find(
+    (item) => item.modelType === clean || item.modelType.replace('_', '-') === clean
+  );
+  if (matchByType) return matchByType;
+
+  // 4. Fuzzy keyword match
+  if (clean.includes('cuboid') || clean.includes('hop-chu-nhat') || clean.includes('hop')) {
+    return SLUG_TO_EXPERIMENT_REGISTRY['hinh-hop-chu-nhat'];
+  }
+  if (clean.includes('cube') || clean.includes('lap-phuong')) {
+    return SLUG_TO_EXPERIMENT_REGISTRY['hinh-lap-phuong'];
+  }
+  if (clean.includes('cylinder') || clean.includes('tru')) {
+    return SLUG_TO_EXPERIMENT_REGISTRY['hinh-tru'];
+  }
+  if (clean.includes('cone') || clean.includes('non')) {
+    return SLUG_TO_EXPERIMENT_REGISTRY['hinh-non'];
+  }
+  if (clean.includes('sphere') || clean.includes('cau')) {
+    return SLUG_TO_EXPERIMENT_REGISTRY['hinh-cau'];
+  }
+  if (clean.includes('prism_quad') || clean.includes('lang-tru-tu-giac')) {
+    return SLUG_TO_EXPERIMENT_REGISTRY['hinh-lang-tru-dung-tu-giac'];
+  }
+  if (clean.includes('prism') || clean.includes('lang-tru')) {
+    return SLUG_TO_EXPERIMENT_REGISTRY['hinh-lang-tru-dung-tam-giac'];
+  }
+  if (clean.includes('pyramid_triangular') || clean.includes('chop-tam-giac')) {
+    return SLUG_TO_EXPERIMENT_REGISTRY['hinh-chop-tam-giac-deu'];
+  }
+  if (clean.includes('pyramid') || clean.includes('chop')) {
+    return SLUG_TO_EXPERIMENT_REGISTRY['hinh-chop-tu-giac-deu'];
+  }
+
+  return undefined;
 }
 
 export function getSlugByModelType(modelType: ModelType): string {
   const entry = Object.entries(SLUG_TO_EXPERIMENT_REGISTRY).find(([_, item]) => item.modelType === modelType);
-  return entry ? entry[0] : 'hinh-tru';
+  return entry ? entry[0] : 'hinh-hop-chu-nhat';
 }

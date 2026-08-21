@@ -58,11 +58,14 @@ export const LabPage: React.FC<LabPageProps> = ({
 }) => {
   // 1. Resolve Initial Experiment from Slug
   const resolvedDef = getExperimentBySlug(initialSlug);
-  const [selectedType, setSelectedType] = useState<ModelType>(resolvedDef?.modelType || 'cylinder');
-  const [currentSlug, setCurrentSlug] = useState<string>(initialSlug);
+  const [selectedType, setSelectedType] = useState<ModelType>(resolvedDef?.modelType || 'cuboid');
+  const [currentSlug, setCurrentSlug] = useState<string>(resolvedDef?.slug || initialSlug);
 
   // 2. Model & Section States
-  const currentModelConfig = GEOMETRY_MODELS.find((m) => m.modelType === selectedType) || GEOMETRY_MODELS[0];
+  const currentModelConfig = useMemo(() => {
+    return GEOMETRY_MODELS.find((m) => m.modelType === selectedType) || GEOMETRY_MODELS[0];
+  }, [selectedType]);
+
   const [params, setParams] = useState<ModelParams>(() => currentModelConfig.defaultParams);
 
   const [displayOptions, setDisplayOptions] = useState<DisplayOptions>({
@@ -104,16 +107,25 @@ export const LabPage: React.FC<LabPageProps> = ({
   const [activeTab, setActiveTab] = useState<'section' | 'params' | 'formulas'>('section');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // Update slug and model when initialSlug changes
+  // Synchronize when initialSlug prop changes from parent navigation
   useEffect(() => {
+    if (!initialSlug) return;
     const def = getExperimentBySlug(initialSlug);
     if (def) {
       setSelectedType(def.modelType);
-      setCurrentSlug(initialSlug);
+      setCurrentSlug(def.slug);
       const conf = GEOMETRY_MODELS.find((m) => m.modelType === def.modelType);
       if (conf) {
         setParams(conf.defaultParams);
       }
+      setSectionParams((prev) => ({
+        ...prev,
+        position: 0,
+        separation: 0,
+        pitch: 0,
+        yaw: 0,
+        roll: 0,
+      }));
     }
   }, [initialSlug]);
 
@@ -255,6 +267,84 @@ export const LabPage: React.FC<LabPageProps> = ({
             { label: 'Đường chéo', formula: 'd = √(a² + b² + h²)', value: Math.sqrt(a * a + b * b + c * c).toFixed(2) + ' cm' },
           ],
         };
+      case 'prism': {
+        const baseA = a;
+        const baseB = b;
+        const heightH = h;
+        const hyp = Math.sqrt(baseA * baseA + baseB * baseB);
+        const sDay = 0.5 * baseA * baseB;
+        const sXq = (baseA + baseB + hyp) * heightH;
+        const sTp = sXq + 2 * sDay;
+        const v = sDay * heightH;
+        return {
+          volume: v,
+          surfaceArea: sTp,
+          lateralArea: sXq,
+          formulas: [
+            { label: 'Diện tích đáy', formula: 'S_day = 1/2 · a · b', value: sDay.toFixed(2) + ' cm²' },
+            { label: 'Cạnh huyền đáy', formula: 'c = √(a² + b²)', value: hyp.toFixed(2) + ' cm' },
+            { label: 'Diện tích xung quanh', formula: 'S_xq = C_day · h', value: sXq.toFixed(2) + ' cm²' },
+            { label: 'Diện tích toàn phần', formula: 'S_tp = S_xq + 2S_day', value: sTp.toFixed(2) + ' cm²' },
+            { label: 'Thể tích lăng trụ', formula: 'V = S_day · h', value: v.toFixed(2) + ' cm³' },
+          ],
+        };
+      }
+      case 'prism_quad': {
+        const sDay = a * b;
+        const sXq = 2 * (a + b) * h;
+        const sTp = sXq + 2 * sDay;
+        const v = sDay * h;
+        return {
+          volume: v,
+          surfaceArea: sTp,
+          lateralArea: sXq,
+          formulas: [
+            { label: 'Diện tích đáy', formula: 'S_day = a · b', value: sDay.toFixed(2) + ' cm²' },
+            { label: 'Diện tích xung quanh', formula: 'S_xq = 2(a + b) · h', value: sXq.toFixed(2) + ' cm²' },
+            { label: 'Diện tích toàn phần', formula: 'S_tp = S_xq + 2S_day', value: sTp.toFixed(2) + ' cm²' },
+            { label: 'Thể tích lăng trụ', formula: 'V = S_day · h', value: v.toFixed(2) + ' cm³' },
+          ],
+        };
+      }
+      case 'pyramid': {
+        const slantD = Math.sqrt(h * h + Math.pow(a / 2, 2));
+        const sDay = a * a;
+        const sXq = 2 * a * slantD;
+        const sTp = sXq + sDay;
+        const v = (1 / 3) * sDay * h;
+        return {
+          volume: v,
+          surfaceArea: sTp,
+          lateralArea: sXq,
+          formulas: [
+            { label: 'Trung đoạn', formula: 'd = √(h² + (a/2)²)', value: slantD.toFixed(2) + ' cm' },
+            { label: 'Diện tích đáy', formula: 'S_day = a²', value: sDay.toFixed(2) + ' cm²' },
+            { label: 'Diện tích xung quanh', formula: 'S_xq = 2a · d', value: sXq.toFixed(2) + ' cm²' },
+            { label: 'Diện tích toàn phần', formula: 'S_tp = S_xq + S_day', value: sTp.toFixed(2) + ' cm²' },
+            { label: 'Thể tích hình chóp', formula: 'V = 1/3 · S_day · h', value: v.toFixed(2) + ' cm³' },
+          ],
+        };
+      }
+      case 'pyramid_triangular': {
+        const sDay = (Math.sqrt(3) / 4) * a * a;
+        const apothem = (a * Math.sqrt(3)) / 6;
+        const slantD = Math.sqrt(h * h + apothem * apothem);
+        const sXq = 1.5 * a * slantD;
+        const sTp = sXq + sDay;
+        const v = (1 / 3) * sDay * h;
+        return {
+          volume: v,
+          surfaceArea: sTp,
+          lateralArea: sXq,
+          formulas: [
+            { label: 'Diện tích đáy tam giác đều', formula: 'S_day = (√3/4)a²', value: sDay.toFixed(2) + ' cm²' },
+            { label: 'Trung đoạn chóp', formula: 'd = √(h² + (a√3/6)²)', value: slantD.toFixed(2) + ' cm' },
+            { label: 'Diện tích xung quanh', formula: 'S_xq = (3/2)a · d', value: sXq.toFixed(2) + ' cm²' },
+            { label: 'Diện tích toàn phần', formula: 'S_tp = S_xq + S_day', value: sTp.toFixed(2) + ' cm²' },
+            { label: 'Thể tích hình chóp', formula: 'V = 1/3 · S_day · h', value: v.toFixed(2) + ' cm³' },
+          ],
+        };
+      }
       default:
         return {
           volume: Math.PI * r * r * h,
